@@ -1,0 +1,2 @@
+image star test.bmp
+image beef beef.png
