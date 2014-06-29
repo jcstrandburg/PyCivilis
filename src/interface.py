@@ -37,8 +37,7 @@ class InterfaceManager( object):
     def handle_event(self, event):
         if event.type == KEYDOWN:
             if self._selected_obj is not None:
-                self._selected_obj.handle_event(event)
-            pass
+                return self._selected_obj.handle_event(event)
         elif event.type == MOUSEBUTTONDOWN:
             mouseovers = self._find_mouseovers()
             for m in mouseovers:
@@ -47,7 +46,8 @@ class InterfaceManager( object):
                         if self._selected_obj is not None:
                             self._selected_obj.deselect()
                         self._selected_obj = m
-                    return
+                    return True
+        return False
 
 class InterfaceObject(object):
     """Base class for all interface objects."""
