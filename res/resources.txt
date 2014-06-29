@@ -1,2 +1,10 @@
 image star test.bmp
 image beef beef.png
+image ico0 settings3.png
+image ico1 binempty.png
+image ico2 home.png
+image ico3 keyhole.png
+image ico4 messenger.png
+image ico5 music.png
+image ico6 settings.png
+image ico7 settings2.png

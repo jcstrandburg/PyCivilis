@@ -8,7 +8,6 @@ class Application(object):
     """Application framework base class"""
     
     def __init__(self):
-    
         #fps tracking
         self.fps = 0
         self.fps_bias = .7
@@ -19,11 +18,13 @@ class Application(object):
         self._pending = [] #list of activities waiting to be added to the stack        
 
         #pygame setup
+        print "Performing pygame setup"
         pygame.init()
         self.clock = pygame.time.Clock()
         self.clock.tick()        
         self.screen = pygame.display.set_mode((800, 600))
-        pygame.mixer.init()
+        pygame.mixer.init()        
+        print "Finished pygame setup"
 
     def set_fps_cap(self, cap):
         """Sets the maximum framerate (and logic frame time)"""    
@@ -37,7 +38,7 @@ class Application(object):
         
     def draw(self):
         """Resets the screen and then tells the top activity to draw"""
-        self.screen.fill((0,0,0) )
+        self.screen.fill((200,150,80) )
         top = self._get_top_activity()
         if top is not None:
             top.draw()

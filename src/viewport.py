@@ -44,7 +44,7 @@ class Viewport(object):
         """Zooms out 1 level."""
         self.zoom( -1)
         
-    def translate(self, pos):
+    def translate_point(self, pos):
         """Translates and returns the given position.
         
         Uses the viewport's pan and zoom to translate the 
@@ -55,14 +55,17 @@ class Viewport(object):
         diff = newposs - self.center
         return self.center + diff*self.scale
         
-    def translate_rect(self, rect):
+    def transform_rect(self, rect):
         """Translates and returns the given rectangle.
         
         Uses the viewport's pan and zoom to translate the 
         given rectangle, then returns the translation.
         """    
-        point = self.translate( rect.center)
-        return rect.move( point-rect.center)
+        point = self.translate_point( rect.center)
+        rect = rect.move( point-rect.center)
+        rect.width *= self.scale
+        rect.height *= self.scale
+        return rect
         
     def get_scale(self):
         """Returns the viewport's scale factor based on zoom."""

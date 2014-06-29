@@ -1,37 +1,44 @@
 """Framework for interface objects."""
 
+import pygame
+from pygame.locals import *
+
 class InterfaceObject(object):
     """Base class for all interface objects."""
     
-    def __init__(self):
+    def __init__(self, renderer, rect):
         self.layer = 0
-        pass
+        self.selected = False
+        self.rect = pygame.Rect(rect)
+        self.disp_rect = self.rect
+        self._mouseover = False
+        self._renderer = renderer
         
-    def mouse_is_over(self, pos):
+    def mouse_is_over(self):
         """Returns true if the mouse is over this object."""
-        pass
+        return self._mouseover
         
-    def update(self, viewport):
-        pass
+    def update(self, viewport, mousepos):
+        self.disp_rect = viewport.transform_rect( self.rect)
+        self._mouseover = self.disp_rect.collidepoint( mousepos)
         
     def draw(self, viewport):
-        pass
+        self._renderer.draw( viewport, self)
         
     def select(self):
-        pass
+        self.selected = True
     
     def deselect(self):
-        pass
-        
-    def selectable(self):
-        return False
-        
-    def is_selected(self):
-        return False
+        self.selected = False
+
+    def set_selected(self, sel):
+        self._selected = sel
         
     def set_render_state(self, state):
         pass
 
     def handle_event(self, event):
         """Handles a pygame input event."""
-        pass
+        if event.type == MOUSEBUTTONDOWN and event.button == 1:
+            self.select()
+            return True
