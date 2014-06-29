@@ -16,6 +16,7 @@ class TransformCache(object):
     def __init__(self):
         self._cache = autoloadcache.AutoLoadCache( self)
         self.set_rotation_interval( 7)
+        self._trans_func = {True: self._cache.get, False: self._cache_load}
 
     def set_rotation_interval(self, interval):
         """Sets the interval used for simplifying rotation angles"""
@@ -34,27 +35,35 @@ class TransformCache(object):
         elif key[0] == _SCALE:
             return pygame.transform.scale( key[1], key[2])
             
-    def smoothscale(self, surface, dimensions):
+    def smoothscale(self, surface, dim_or_scale, cached=True):
         """Performs a python smoothscale transformation"""
-        return self._cache.get( (_SMOOTHSCALE, surface, dimensions))
+        if not hasattr(dim_or_scale, "__getitem__"):
+            dim_or_scale = (int(surface.get_width()*dim_or_scale),
+                            int(surface.get_height()*dim_or_scale))
+
+        return self._trans_func[cached]( (_SMOOTHSCALE, surface, dim_or_scale))
         
-    def flip(self, surface, xflip, yflip):
+    def flip(self, surface, xflip, yflip, cached=True):
         """Performs a python flip transformation"""
-        return self._cache.get( (_FLIP, surface, xflip, yflip))
+        return self._trans_func[cached]( (_FLIP, surface, xflip, yflip))
         
-    def rotate(self, surface, angle):
+    def rotate(self, surface, angle, cached=True):
         """Performs a python rotation transformation
         
         The angle will be simplifying by clamping it to the rotation interval
         """
         angle = int(angle/self.rot_interval)*self.rot_interval
         angle = angle%360        
-        return self._cache.get( (_ROTATE, surface, angle))
+        return self._trans_func[cached]( (_ROTATE, surface, angle))
         
-    def scale2x(self, surface):
+    def scale2x(self, surface, cached=True):
         """Performs a python scale2x transformation"""
-        return self._cache.get( (_SCALE2X, surface))
+        return self._trans_func[cached]( (_SCALE2X, surface))
         
-    def scale(self, surface, dimensions):
+    def scale(self, surface, dim_or_scale, cached=True):
         """Performs a python scale transformation"""
-        return self._cache.get( (_SCALE, surface, dimensions))
+        if not hasattr(dim_or_scale, "__getitem__"):
+            dim_or_scale = (int(surface.get_width()*dim_or_scale),
+                            int(surface.get_height()*dim_or_scale))
+        
+        return self._trans_func[cached]( (_SCALE, surface, dim_or_scale))
