@@ -113,16 +113,23 @@ class InterfaceAction(object):
         raise NotImplementedError("do_action not implemented in base InterfaceAction")
         
 class ContextMenu(InterfaceObject):
-    def __init__(self, manager, center, icons):
+    def __init__(self, manager, center, objects):
         InterfaceObject.__init__(self, manager, None, (0,0,10,10))
         self.center = vector.Vec2d(center)
         self.items = []
+        self.icon_size = 1
         
-        for i in range( len(icons)):
-            angle = (2*i*math.pi)/len(icons)
-            dist = math.sqrt( len(icons)-1)*17
+        for obj in objects:
+            icon = obj["icon"]
+            self.icon_size = max(self.icon_size, icon.get_width(), icon.get_height())
+        
+        for i in range( len(objects)):
+            angle = (2*i*math.pi)/len(objects)
+            dist = math.sqrt( len(objects)-1)*self.icon_size/2
+            #dist = pow(len(objects)-1,0.625)*self.icon_size/2*0.8
+            
             pos = self.center + (math.sin(angle)*dist, -math.cos(angle)*dist)
-            item = ContextMenuItem(manager, pos, icons[i]["icon"], icons[i]["action"])
+            item = ContextMenuItem(manager, pos, objects[i]["icon"], objects[i]["action"])
             self.items.append(item)
         
     def mouse_is_over(self):
@@ -146,7 +153,8 @@ class ContextMenu(InterfaceObject):
         
     def draw(self, viewport):
         point = viewport.translate_point( self.center).int_tuple
-        pygame.draw.circle( viewport.surface, (255,255,255), point, int(30*viewport.scale))
+        pygame.draw.circle( viewport.surface, (255,255,255), point, 
+                            int(0.5*self.icon_size*viewport.scale))
         for item in self.items:
             item.draw(viewport)
         
