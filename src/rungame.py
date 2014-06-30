@@ -2,6 +2,7 @@
 import pygame
 from pygame.locals import *
 import math
+import sys
 
 #local imports
 import application
@@ -25,8 +26,8 @@ class CivilisApp( application.Application):
 
 class TestObj1(interface.InterfaceObject):
     
-    def __init__(self, renderer):
-        interface.InterfaceObject.__init__(self, renderer, (0,0,100,100))
+    def __init__(self, manager, renderer):
+        interface.InterfaceObject.__init__(self, manager, renderer, (0,0,100,100))
     
     def update(self, viewport, mousepos):
         interface.InterfaceObject.update(self, viewport, mousepos)
@@ -49,25 +50,34 @@ class TestRenderer(interface.BaseRenderer):
             return self.img2
         else:
             return self.img3
+
+class TestContextAction(interface.InterfaceAction):
+    def __init__(self, message):
+        self.message = message
+        interface.InterfaceAction.__init__(self)
         
+    def do_action(self, interface, game):
+        print "interface action: "+self.message
+            
 class TestActivity1( application.Activity):
     """Test activity for debugging."""
     
     def on_create(self, config):
         application.Activity.on_create(self, config)
-        self.controller.set_fps_cap( 100)
+        self.controller.set_fps_cap( 20)
         self.vp = viewport.Viewport( self.controller.screen)
         self.vp.transform.set_rotation_interval( 5)
         self.counter = 1
         self.star_img = pygame.image.load( "res/test.bmp")
         self.star = gameobject.GameObject(self.controller)
         self.font = pygame.font.Font(None, 24)
-        self.iface = interface.InterfaceManager()
+        self.iface = interface.InterfaceManager(self)
         
         #transform test variables
         self.angle = 0
         self.xflip = False
         self.yflip = False
+        self.sz = 3
         
         self.resources = resourcemanager.ResourceManager()
         self.resources.load_set("res/resources.txt")
@@ -78,16 +88,14 @@ class TestActivity1( application.Activity):
             self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
         
         renderer = TestRenderer()
-        obj1 = TestObj1(renderer)
+        obj1 = TestObj1(self.iface, renderer)
         obj1.rect.center = (100, 100)
-        obj2 = TestObj1(renderer)
+        obj2 = TestObj1(self.iface, renderer)
         obj2.rect.center = (150, 150)
         obj2.layer = 1
-        obj3 = interface.ContextMenu( None, (450,350), self.icons[:6])
         
         self.iface.add_object( obj1)
         self.iface.add_object( obj2)
-        self.iface.add_object( obj3)
 
     def update(self):
         application.Activity.update(self)
@@ -137,25 +145,32 @@ class TestActivity1( application.Activity):
         self.vp.surface.blit( star, self.vp.transform_rect(rect))"""
         
         self.iface.draw( self.vp)
-        
-        """for i in range( len(self.icons)):
-            self.vp.surface.blit( self.icons[i], (300, 30+50*i, 40, 40))"""
-
 
     def handle_event(self, event):
-        self.iface.handle_event( event)
+        if self.iface.handle_event( event):
+            print "handled"
+            return
     
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 4:
                 self.vp.zoom_in()
             elif event.button == 5:
                 self.vp.zoom_out()
+            elif event.button == 3:
+                options = []
+                for x in range(self.sz):
+                    options.append({ "icon": self.icons[x],
+                                     "action": TestContextAction("clicky "+str(x))})
+            
+                self.iface.add_object( interface.ContextMenu(self.iface, event.pos, options))
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:
-                self.xflip = not self.xflip
+                self.sz -= 1
+                print self.sz
             elif event.key == K_PERIOD:
-                self.yflip = not self.yflip
+                self.sz += 1
+                print self.sz
         
 def run():
 

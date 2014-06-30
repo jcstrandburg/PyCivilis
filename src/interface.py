@@ -8,14 +8,25 @@ import math
 import vector
 
 class InterfaceManager( object):
-    def __init__(self):
+    def __init__(self, controller):
         self._selected_obj = None
         self._children = []
+        self.controller = controller
     
     def update(self, viewport):
         #resort objects by layer
         self._children.sort( key=lambda obj: obj.layer)
         mpos = pygame.mouse.get_pos()
+        
+        #remove "finished" objects
+        i, j = 0, 0
+        while j < len(self._children):
+            if not self._children[j].finished:
+                self._children[i] = self._children[j]
+                i+=1        
+            j += 1        
+        del self._children[i:]
+        
         for c in self._children:
             c.update( viewport, mpos)
         
@@ -48,17 +59,22 @@ class InterfaceManager( object):
                         self._selected_obj = m
                     return True
         return False
+        
+    def do_action(self, action):
+        action.do_action(self, self.controller)
 
 class InterfaceObject(object):
     """Base class for all interface objects."""
     
-    def __init__(self, renderer, rect):
+    def __init__(self, manager, renderer, rect):
         self.layer = 0
         self.selected = False
         self.rect = pygame.Rect(rect)
         self.disp_rect = self.rect
         self._mouseover = False
         self._renderer = renderer
+        self.finished = False
+        self.manager = manager
         
     def mouse_is_over(self):
         """Returns true if the mouse is over this object."""
@@ -97,16 +113,16 @@ class InterfaceAction(object):
         raise NotImplementedError("do_action not implemented in base InterfaceAction")
         
 class ContextMenu(InterfaceObject):
-    def __init__(self, renderer, center, icons):
-        InterfaceObject.__init__(self, renderer, (0,0,10,10))
+    def __init__(self, manager, center, icons):
+        InterfaceObject.__init__(self, manager, None, (0,0,10,10))
         self.center = vector.Vec2d(center)
         self.items = []
         
         for i in range( len(icons)):
             angle = (2*i*math.pi)/len(icons)
-            dist = math.sqrt( len(icons)-1)*20
+            dist = math.sqrt( len(icons)-1)*17
             pos = self.center + (math.sin(angle)*dist, -math.cos(angle)*dist)
-            item = ContextMenuItem(pos, icons[i])
+            item = ContextMenuItem(manager, pos, icons[i]["icon"], icons[i]["action"])
             self.items.append(item)
         
     def mouse_is_over(self):
@@ -122,7 +138,11 @@ class ContextMenu(InterfaceObject):
     def handle_event(self, event):
         for item in self.items:
             if item.mouse_is_over():
-                item.handle_event(event)
+                if item.handle_event(event):
+                    if item.finished:
+                        self.finished = True
+                    return True                    
+        return False
         
     def draw(self, viewport):
         point = viewport.translate_point( self.center).int_tuple
@@ -132,15 +152,20 @@ class ContextMenu(InterfaceObject):
         
 
 class ContextMenuItem(InterfaceObject):
-    def __init__(self, pos, icon):
-        InterfaceObject.__init__(self, icon_renderer, (0,0,40,40))
+    def __init__(self, manager, pos, icon, action=None):
+        InterfaceObject.__init__(self, manager, icon_renderer, (0,0,40,40))
         self.rect.center = pos
         self.icon = icon
+        self.action = action
         
     def handle_event(self, event):
         if event.type == MOUSEBUTTONDOWN and event.button == 1:
-            print "Item clicked"+str(self.rect.center)
+            if self.action is not None:
+                self.manager.do_action( self.action)
+            self.finished = True
             return True
+            
+        return False
 
 class BaseRenderer(object):
     def __init__(self):
