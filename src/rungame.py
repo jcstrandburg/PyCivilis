@@ -108,6 +108,15 @@ class TestActivity1( application.Activity):
         elif pressed[K_RIGHTBRACKET]:
             self.angle -= 1
             
+        if pressed[K_d]:
+            self.vp.pan( (2,0))
+        elif pressed[K_a]:
+            self.vp.pan( (-2,0))
+        elif pressed[K_s]:
+            self.vp.pan( (0,2))
+        elif pressed[K_w]:
+            self.vp.pan( (0,-2))  
+            
         self.star.position = pygame.mouse.get_pos()
         
     def draw(self):
@@ -116,34 +125,7 @@ class TestActivity1( application.Activity):
         pos = pygame.mouse.get_pos()
         pygame.draw.circle( self.vp.surface, (255,255,255), pos, 
                             int(25*self.vp.scale), 1)
-        
-        pressed = pygame.key.get_pressed()
-        if pressed[K_d]:
-            self.vp.pan( (2,0))
-        elif pressed[K_a]:
-            self.vp.pan( (-2,0))
-        elif pressed[K_s]:
-            self.vp.pan( (0,2))
-        elif pressed[K_w]:
-            self.vp.pan( (0,-2))        
 
-        #viewport translate and transform tests
-        """text = "Scale: %2.2f, Angle %3.1f, Flip %d %d" % (self.vp.get_scale(), self.angle, self.xflip, self.yflip)
-        img = self.font.render(text, False, (255,255,255))
-        rect = img.get_rect()
-        self.vp.surface.blit( img, rect)
-        
-        t = self.vp.transform
-        star = t.smoothscale( self.star_img, 
-                (int(self.star_img.get_width()*self.vp.get_scale()), 
-                 int(self.star_img.get_height()*self.vp.get_scale())))
-        star = t.rotate( star, self.angle)
-        star = t.flip( star, self.xflip, self.yflip)
-
-        rect = star.get_rect()
-        rect.center = self.star.position
-        self.vp.surface.blit( star, self.vp.transform_rect(rect))"""
-        
         self.iface.draw( self.vp)
 
     def handle_event(self, event):
@@ -161,8 +143,11 @@ class TestActivity1( application.Activity):
                 for x in range(self.sz):
                     options.append({ "icon": self.icons[x],
                                      "action": TestContextAction("clicky "+str(x))})
-            
-                self.iface.add_object( interface.ContextMenu(self.iface, event.pos, options))
+                                     
+                cmenu = interface.ContextMenu(self.iface, event.pos, options)            
+                self.iface.set_context_menu(cmenu)
+            elif event.button == 1:
+                self.iface.cancel_context_menu()
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:

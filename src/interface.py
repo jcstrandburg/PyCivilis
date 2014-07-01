@@ -9,11 +9,14 @@ import vector
 
 class InterfaceManager( object):
     def __init__(self, controller):
+        """"Initialize the InterfaceManager"""
         self._selected_obj = None
         self._children = []
         self.controller = controller
+        self._context_menu = None
     
     def update(self, viewport):
+        """Updates all child objects with the current mouse position etc..."""
         #resort objects by layer
         self._children.sort( key=lambda obj: obj.layer)
         mpos = pygame.mouse.get_pos()
@@ -27,8 +30,25 @@ class InterfaceManager( object):
             j += 1        
         del self._children[i:]
         
+        if self._context_menu is not None:
+            if self._context_menu.finished:
+                self._context_menu = None
+        
         for c in self._children:
             c.update( viewport, mpos)
+            
+    def set_context_menu(self, cmenu):
+        """Cancels current context menu and sets a new one."""
+        self.cancel_context_menu()
+            
+        self._context_menu = cmenu
+        self.add_object( cmenu)
+        
+    def cancel_context_menu(self):
+        """Removes current context menu."""
+        if self._context_menu is not None:
+            self._children.remove( self._context_menu)
+            self._context_menu = None
         
     def add_object(self, iobj):
         self._children.append(iobj)
@@ -61,6 +81,7 @@ class InterfaceManager( object):
         return False
         
     def do_action(self, action):
+        """Runs the given action."""
         action.do_action(self, self.controller)
 
 class InterfaceObject(object):
@@ -81,6 +102,7 @@ class InterfaceObject(object):
         return self._mouseover
         
     def update(self, viewport, mousepos):
+        """Updates the display rect and mouseover status."""
         self.disp_rect = viewport.transform_rect( self.rect)
         self._mouseover = self.disp_rect.collidepoint( mousepos)
         
@@ -133,6 +155,7 @@ class ContextMenu(InterfaceObject):
             self.items.append(item)
         
     def mouse_is_over(self):
+        """Returns true if the mouse is over any of the menu items."""
         for item in self.items:
             if item.mouse_is_over():
                 return True
@@ -143,6 +166,8 @@ class ContextMenu(InterfaceObject):
             item.update(viewport, mousepos)
             
     def handle_event(self, event):
+        """Handles the given input event, 
+        returning True if the event should be consumed."""
         for item in self.items:
             if item.mouse_is_over():
                 if item.handle_event(event):
