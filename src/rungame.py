@@ -9,7 +9,7 @@ import application
 import transform
 import viewport
 import resourcemanager
-import gameobject
+import game
 import vector
 import interface
 
@@ -69,7 +69,7 @@ class TestActivity1( application.Activity):
         self.vp.transform.set_rotation_interval( 5)
         self.counter = 1
         self.star_img = pygame.image.load( "res/test.bmp")
-        self.star = gameobject.GameObject(self.controller)
+        self.star = game.GameObject(self.controller)
         self.font = pygame.font.Font(None, 24)
         self.iface = interface.InterfaceManager(self)
         
@@ -94,8 +94,8 @@ class TestActivity1( application.Activity):
         obj2.rect.center = (150, 150)
         obj2.layer = 1
         
-        self.iface.add_object( obj1)
-        self.iface.add_object( obj2)
+        self.iface.add_child( obj1)
+        self.iface.add_child( obj2)
 
     def update(self):
         application.Activity.update(self)

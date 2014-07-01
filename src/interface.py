@@ -3,6 +3,7 @@
 import pygame
 from pygame.locals import *
 import math
+import game
 
 #local imports
 import vector
@@ -42,7 +43,7 @@ class InterfaceManager( object):
         self.cancel_context_menu()
             
         self._context_menu = cmenu
-        self.add_object( cmenu)
+        self.add_child( cmenu)
         
     def cancel_context_menu(self):
         """Removes current context menu."""
@@ -50,8 +51,11 @@ class InterfaceManager( object):
             self._children.remove( self._context_menu)
             self._context_menu = None
         
-    def add_object(self, iobj):
+    def add_child(self, iobj):
         self._children.append(iobj)
+
+    def remove_child(self, iojb):
+        self._children.remove(iobj)
         
     def draw(self, viewport):
         for c in self._children:
@@ -87,15 +91,20 @@ class InterfaceManager( object):
 class InterfaceObject(object):
     """Base class for all interface objects."""
     
-    def __init__(self, manager, renderer, rect):
+    def __init__(self, manager, renderer, obj_or_rect):
         self.layer = 0
         self.selected = False
-        self.rect = pygame.Rect(rect)
-        self.disp_rect = self.rect
         self._mouseover = False
         self._renderer = renderer
         self.finished = False
         self.manager = manager
+        
+        if isinstance(obj_or_rect, game.GameObject):
+            self.rect = obj_or_rect.rect
+        else:
+            self.rect = pygame.Rect( obj_or_rect)
+        self.disp_rect = self.rect            
+        
         
     def mouse_is_over(self):
         """Returns true if the mouse is over this object."""
