@@ -8,3 +8,5 @@ image ico4 messenger.png
 image ico5 music.png
 image ico6 settings.png
 image ico7 settings2.png
+
+image person person.png

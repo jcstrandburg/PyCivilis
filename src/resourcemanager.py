@@ -60,13 +60,14 @@ class ResourceManager(object):
         file = open(path, "r")
         for line in file:
             tokens = line.split()
-            if len( tokens) != 3:
-                raise Exception( "Invalid resource line {" + line + "}")
+            if len(tokens) > 0:#skip blank lines
+                if len( tokens) != 3:
+                    raise Exception( "Invalid resource line {" + line + "}")
 
-            type = tokens[0]    
-            tag = tokens[1]
-            path = os.path.join( basepath, tokens[2])
-            self._resources[ tag] = _Resource( path, type)
+                type = tokens[0]    
+                tag = tokens[1]
+                path = os.path.join( basepath, tokens[2])
+                self._resources[ tag] = _Resource( path, type)
         
     def add_resource_loader(self, type, loader):
         """Adds a loader class for the given resource type"""

@@ -1,31 +1,13 @@
 import pygame
 
 import vector
-
-class GameObject(object):
-
-    def __init__(self, game):
-        """Initialize with the given game."""
-        self._game = game
-        self._pos = (0,0)
-        self.id = game.new_object_id()
-        self._selected= False        
-        self._render_state = { "selected": self._selected}
-
-    def update(self):
-        """Perform a single logic frame."""
-        pass
+import game
 
 class Game(object):
-    def __init__(object):
-        """Initialize with the given game."""
-        self.finished = False
-        self._game = game
-        self._pos = (0,0)
-        self.id = game.new_object_id()
-        self._selected= False        
-        self._render_state = { "selected": self._selected}
-        
+    def __init__(self):
+        self._next_id = 0
+        self._objects = []
+            
     def update(self):
         for o in self._objects:
             o.update()
@@ -44,14 +26,23 @@ class Game(object):
         
     def remove_game_object(self, ojb):
         self._objects.remove(obj)
+        
+    def new_object_id(self):
+        self._next_id += 1
+        return self._next_id
+        
     
 class GameObject(object):
     def __init__(self, game):
+        """Initialize with the given game."""
         self.finished = False
-        self.rect = pygame.Rect(0,0,10,10)
+        self.rect = pygame.Rect(0,0,100,100)
         self.game = game
         self._selected = False
-        self._render_state = {}
+        self.id = game.new_object_id()
+        self._selected= False        
+        self._render_state = { "selected": self._selected}
+
 
     def _set_pos(self, pos):
         self.rect.center = pos
@@ -63,6 +54,7 @@ class GameObject(object):
                 doc="""Position of the object""")
 
     def selectable(self):
+        """returns whether the object is selectable"""
         return False
                 
     def select(self):

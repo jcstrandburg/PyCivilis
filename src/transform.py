@@ -8,6 +8,7 @@ _FLIP = 1
 _ROTATE = 2
 _SCALE2X = 3
 _SCALE = 4
+_HALO = 5
 #_NUM_TRANSFORMS = 4
 
 class TransformCache(object):
@@ -34,9 +35,57 @@ class TransformCache(object):
             return pygame.transform.scale2x( key[1])
         elif key[0] == _SCALE:
             return pygame.transform.scale( key[1], key[2])
+        elif key[0] == _HALO:
+            return self._do_halo( key[1], key[2], key[3])
+            
+    def _do_halo(self, surface, thickness, border_color):
+        newsurf = pygame.Surface((surface.get_width()+2*thickness, 
+                                    surface.get_height()+2*thickness), 
+                                    pygame.SRCALPHA)
+        newsurf.blit( surface, (thickness,thickness))
+        a_thresh = 200
+        
+        for x in xrange(surface.get_width()):
+            #top border of halo
+            for y in xrange(surface.get_height()):
+                color = surface.get_at( (x,y))
+                if color.a > a_thresh:
+                    for i in range(thickness):
+                        newsurf.set_at((x+thickness,y+i), border_color)
+                    break
+                    
+            #bottom border of halo
+            for y in xrange(surface.get_height()-1, -1, -1):
+                color = surface.get_at( (x,y))
+                if color.a > a_thresh:
+                    for i in range(thickness):
+                        newsurf.set_at((x+thickness,y+thickness+i+1), border_color)
+                    break
+
+        for y in xrange(surface.get_height()):
+            #left border of halo
+            for x in xrange(surface.get_width()):
+                color = surface.get_at( (x,y))
+                if color.a > a_thresh:
+                    for i in range(thickness):
+                        newsurf.set_at((x+i,y+thickness), border_color)
+                    break
+                    
+            #fight border of halo
+            for x in xrange(surface.get_width()-1, -1, -1):
+                color = surface.get_at( (x,y))
+                if color.a > a_thresh:
+                    for i in range(thickness):
+                        newsurf.set_at((x+thickness+i+1,y+thickness), border_color)
+                    break
+
+                    
+        return newsurf
+    
+        #return pygame.transform.laplacian(surface)
             
     def smoothscale(self, surface, dim_or_scale, cached=True):
-        """Performs a python smoothscale transformation"""
+        """Performs a pygame smoothscale transformation"""
         if not hasattr(dim_or_scale, "__getitem__"):
             dim_or_scale = (int(surface.get_width()*dim_or_scale),
                             int(surface.get_height()*dim_or_scale))
@@ -44,11 +93,11 @@ class TransformCache(object):
         return self._trans_func[cached]( (_SMOOTHSCALE, surface, dim_or_scale))
         
     def flip(self, surface, xflip, yflip, cached=True):
-        """Performs a python flip transformation"""
+        """Performs a pygame flip transformation"""
         return self._trans_func[cached]( (_FLIP, surface, xflip, yflip))
         
     def rotate(self, surface, angle, cached=True):
-        """Performs a python rotation transformation
+        """Performs a pygame rotation transformation
         
         The angle will be simplifying by clamping it to the rotation interval
         """
@@ -57,13 +106,17 @@ class TransformCache(object):
         return self._trans_func[cached]( (_ROTATE, surface, angle))
         
     def scale2x(self, surface, cached=True):
-        """Performs a python scale2x transformation"""
+        """Performs a pygame scale2x transformation"""
         return self._trans_func[cached]( (_SCALE2X, surface))
         
     def scale(self, surface, dim_or_scale, cached=True):
-        """Performs a python scale transformation"""
+        """Performs a pygame scale transformation"""
         if not hasattr(dim_or_scale, "__getitem__"):
             dim_or_scale = (int(surface.get_width()*dim_or_scale),
                             int(surface.get_height()*dim_or_scale))
         
         return self._trans_func[cached]( (_SCALE, surface, dim_or_scale))
+        
+    def halo(self, surface, thickness, color=(240,240,50), cached=True):
+        """Performs a pygame scale2x transformation"""
+        return self._trans_func[cached]( (_HALO, surface, thickness, color))

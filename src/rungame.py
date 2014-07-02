@@ -24,10 +24,13 @@ class CivilisApp( application.Application):
         self._object_id += 1
         return self._object_id-1
 
-class TestObj1(interface.InterfaceObject):
+class TestInterfaceObj1(interface.InterfaceObject):
     
-    def __init__(self, manager, renderer):
-        interface.InterfaceObject.__init__(self, manager, renderer, (0,0,100,100))
+    def __init__(self, manager, renderer, obj=None):
+        if obj is not None:
+            interface.InterfaceObject.__init__(self, manager, renderer, obj)
+        else:
+            interface.InterfaceObject.__init__(self, manager, renderer, (0,0,100,100))
     
     def update(self, viewport, mousepos):
         interface.InterfaceObject.update(self, viewport, mousepos)
@@ -58,7 +61,23 @@ class TestContextAction(interface.InterfaceAction):
         
     def do_action(self, interface, game):
         print "interface action: "+self.message
-            
+
+class TestGameObject(game.GameObject):
+    def update(self):
+        game.GameObject.update(self)
+        self.rect.move_ip( (1,1))
+
+    def selectable(self):
+        return True
+        
+    def select(self):
+        game.GameObject.select(self)
+        print "Game object selected"
+        
+    def deselect(self):
+        game.GameObject.deselect(self)
+        print "Game object deselected"
+        
 class TestActivity1( application.Activity):
     """Test activity for debugging."""
     
@@ -69,9 +88,9 @@ class TestActivity1( application.Activity):
         self.vp.transform.set_rotation_interval( 5)
         self.counter = 1
         self.star_img = pygame.image.load( "res/test.bmp")
-        self.star = game.GameObject(self.controller)
         self.font = pygame.font.Font(None, 24)
         self.iface = interface.InterfaceManager(self)
+        self.game = game.Game()
         
         #transform test variables
         self.angle = 0
@@ -86,11 +105,14 @@ class TestActivity1( application.Activity):
         for i in xrange(8):
             tag = "ico" + str(i)
             self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
-        
+
+        gobj = TestGameObject(self.game)
+        self.game.add_game_object( gobj)
+            
         renderer = TestRenderer()
-        obj1 = TestObj1(self.iface, renderer)
+        obj1 = TestInterfaceObj1(self.iface, renderer, gobj)
         obj1.rect.center = (100, 100)
-        obj2 = TestObj1(self.iface, renderer)
+        obj2 = TestInterfaceObj1(self.iface, renderer)
         obj2.rect.center = (150, 150)
         obj2.layer = 1
         
@@ -100,6 +122,7 @@ class TestActivity1( application.Activity):
     def update(self):
         application.Activity.update(self)
         self.iface.update( self.vp)
+        self.game.update()        
         self.counter += 1
         
         pressed = pygame.key.get_pressed()
@@ -116,8 +139,6 @@ class TestActivity1( application.Activity):
             self.vp.pan( (0,2))
         elif pressed[K_w]:
             self.vp.pan( (0,-2))  
-            
-        self.star.position = pygame.mouse.get_pos()
         
     def draw(self):
         application.Activity.draw(self)
@@ -126,7 +147,31 @@ class TestActivity1( application.Activity):
         pygame.draw.circle( self.vp.surface, (255,255,255), pos, 
                             int(25*self.vp.scale), 1)
 
-        self.iface.draw( self.vp)
+        #self.iface.draw( self.vp)
+        
+        p = self.resources.get("person")
+        rect = p.get_rect()
+        rect.center = (100,200)
+        self.vp.surface.blit( p, rect)
+        rect.center = (200,200)
+        self.vp.surface.blit( p, rect)
+        rect = rect.inflate((4,4))        
+        pygame.draw.rect( self.vp.surface, (255,255,50), rect, 1)
+        
+        p2 = self.vp.transform.halo( p, 1, (255,0,0))
+        rect = p2.get_rect()
+        rect.center = (300,200)
+        self.vp.surface.blit( p2, rect)
+
+        p2 = self.vp.transform.halo( p, 2, (0,0,255))
+        rect = p2.get_rect()
+        rect.center = (400,200)
+        self.vp.surface.blit( p2, rect)
+
+        p2 = self.vp.transform.halo( p, 3, (255,255,0))
+        rect = p2.get_rect()
+        rect.center = (500,200)
+        self.vp.surface.blit( p2, rect)
 
     def handle_event(self, event):
         if self.iface.handle_event( event):
