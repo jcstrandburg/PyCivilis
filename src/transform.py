@@ -39,11 +39,22 @@ class TransformCache(object):
             return self._do_halo( key[1], key[2], key[3])
             
     def _do_halo(self, surface, thickness, border_color):
+        """Transform function that creates a halo around the given image. Currently
+        has an issue where the halo is not rendered correctly around the corners of the
+        image. This could be solved by checking the alpha of the final image before setting
+        it, and refusing to put pixels of lesser alpha than what is already there."""
+    
         newsurf = pygame.Surface((surface.get_width()+2*thickness, 
                                     surface.get_height()+2*thickness), 
                                     pygame.SRCALPHA)
         newsurf.blit( surface, (thickness,thickness))
         a_thresh = 200
+        
+        cols = []
+        for i in xrange(thickness):
+            alpha = int(a_thresh * (1-float(i)/thickness))
+            color = pygame.Color(border_color[0], border_color[1], border_color[2], alpha)
+            cols.append(color)
         
         for x in xrange(surface.get_width()):
             #top border of halo
@@ -51,7 +62,7 @@ class TransformCache(object):
                 color = surface.get_at( (x,y))
                 if color.a > a_thresh:
                     for i in range(thickness):
-                        newsurf.set_at((x+thickness,y+i), border_color)
+                        newsurf.set_at((x+thickness,y+i), cols[thickness-i-1])
                     break
                     
             #bottom border of halo
@@ -59,7 +70,7 @@ class TransformCache(object):
                 color = surface.get_at( (x,y))
                 if color.a > a_thresh:
                     for i in range(thickness):
-                        newsurf.set_at((x+thickness,y+thickness+i+1), border_color)
+                        newsurf.set_at((x+thickness,y+thickness+i+1), cols[i])
                     break
 
         for y in xrange(surface.get_height()):
@@ -68,7 +79,7 @@ class TransformCache(object):
                 color = surface.get_at( (x,y))
                 if color.a > a_thresh:
                     for i in range(thickness):
-                        newsurf.set_at((x+i,y+thickness), border_color)
+                        newsurf.set_at((x+i,y+thickness), cols[thickness-i-1])
                     break
                     
             #fight border of halo
@@ -76,7 +87,7 @@ class TransformCache(object):
                 color = surface.get_at( (x,y))
                 if color.a > a_thresh:
                     for i in range(thickness):
-                        newsurf.set_at((x+thickness+i+1,y+thickness), border_color)
+                        newsurf.set_at((x+thickness+i+1,y+thickness), cols[i])
                     break
 
                     

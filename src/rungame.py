@@ -147,31 +147,7 @@ class TestActivity1( application.Activity):
         pygame.draw.circle( self.vp.surface, (255,255,255), pos, 
                             int(25*self.vp.scale), 1)
 
-        #self.iface.draw( self.vp)
-        
-        p = self.resources.get("person")
-        rect = p.get_rect()
-        rect.center = (100,200)
-        self.vp.surface.blit( p, rect)
-        rect.center = (200,200)
-        self.vp.surface.blit( p, rect)
-        rect = rect.inflate((4,4))        
-        pygame.draw.rect( self.vp.surface, (255,255,50), rect, 1)
-        
-        p2 = self.vp.transform.halo( p, 1, (255,0,0))
-        rect = p2.get_rect()
-        rect.center = (300,200)
-        self.vp.surface.blit( p2, rect)
-
-        p2 = self.vp.transform.halo( p, 2, (0,0,255))
-        rect = p2.get_rect()
-        rect.center = (400,200)
-        self.vp.surface.blit( p2, rect)
-
-        p2 = self.vp.transform.halo( p, 3, (255,255,0))
-        rect = p2.get_rect()
-        rect.center = (500,200)
-        self.vp.surface.blit( p2, rect)
+        self.iface.draw( self.vp)
 
     def handle_event(self, event):
         if self.iface.handle_event( event):
@@ -184,6 +160,12 @@ class TestActivity1( application.Activity):
             elif event.button == 5:
                 self.vp.zoom_out()
             elif event.button == 3:
+            
+                '''if self.iface._selected_obj is not None and self.iface._selected_obj.game_object is not None:
+                    if self.iface._selected_obj.accepts_orders:
+                        print "wat"'''
+            
+                
                 options = []
                 for x in range(self.sz):
                     options.append({ "icon": self.icons[x],

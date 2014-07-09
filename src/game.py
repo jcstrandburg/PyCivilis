@@ -3,6 +3,9 @@ import pygame
 import vector
 import game
 
+LEFTCLICK = 1
+RIGHTCLICK = 2
+
 class Game(object):
     def __init__(self):
         self._next_id = 0

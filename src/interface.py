@@ -149,6 +149,11 @@ class InterfaceObject(object):
             return True
                 
         return False
+        
+    def get_game_object(self):
+        return self._game_object
+        
+    game_object = property( get_game_object)
 
 class InterfaceAction(object):
     def __init__(self):
