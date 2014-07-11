@@ -8,6 +8,13 @@ import game
 #local imports
 import vector
 
+#layers
+LAYER_BASE      = 0
+LAYER_BG        = 10
+LAYER_GAME_BG   = 20
+LAYER_GAME_FG   = 30
+LAYER_IFACE     = 40
+
 class InterfaceManager( object):
     def __init__(self, controller):
         """"Initialize the InterfaceManager"""
@@ -19,7 +26,7 @@ class InterfaceManager( object):
     def update(self, viewport):
         """Updates all child objects with the current mouse position etc..."""
         #resort objects by layer
-        self._children.sort( key=lambda obj: obj.layer)
+        self._children.sort( key=lambda obj: obj.layer)#probably need to use y in sorting also
         mpos = pygame.mouse.get_pos()
         
         #remove "finished" objects
@@ -47,6 +54,7 @@ class InterfaceManager( object):
         
     def cancel_context_menu(self):
         """Removes current context menu."""
+        print "wat", self._context_menu
         if self._context_menu is not None:
             self._children.remove( self._context_menu)
             self._context_menu = None
@@ -70,19 +78,33 @@ class InterfaceManager( object):
         return sorted(retval, key=lambda obj: -obj.layer)
                 
     def handle_event(self, event):
+        handled = False    
         if event.type == KEYDOWN:
             if self._selected_obj is not None:
-                return self._selected_obj.handle_event(event)
+                handled =  self._selected_obj.handle_event(event)
         elif event.type == MOUSEBUTTONDOWN:
             mouseovers = self._find_mouseovers()
             for m in mouseovers:
                 if m.handle_event(event):
-                    if m.selected and m != self._selected_obj:
-                        if self._selected_obj is not None:
-                            self._selected_obj.deselect()
-                        self._selected_obj = m
-                    return True
-        return False
+                    handled = True
+                    break
+                    
+            if event.button == 1:
+                self.cancel_context_menu()
+                
+        return handled        
+        
+    def _set_selected_obj(self, sel):
+        if self._selected_obj != sel:
+            if self._selected_obj is not None:
+                self._selected_obj.deselect()
+            self._selected_obj = sel
+            sel.select()
+            
+    def _get_selected_obj(self, sel):
+        return self._selected_obj
+        
+    selected_obj = property( _get_selected_obj, _set_selected_obj)
         
     def do_action(self, action):
         """Runs the given action."""
@@ -91,8 +113,8 @@ class InterfaceManager( object):
 class InterfaceObject(object):
     """Base class for all interface objects."""
     
-    def __init__(self, manager, renderer, obj_or_rect):
-        self.layer = 0
+    def __init__(self, manager, renderer, obj_or_rect, layer=LAYER_BASE):
+        self.layer = layer
         self.selected = False
         self._mouseover = False
         self._renderer = renderer
@@ -143,9 +165,13 @@ class InterfaceObject(object):
         """Handles a pygame input event."""
         if event.type == MOUSEBUTTONDOWN and event.button == 1:
             if self._game_object is None and self.selectable:
-                self.select()
+                self.manager.selected_obj = self
             elif self._game_object is not None and self._game_object.selectable():
-                self.select()
+                self.manager.selected_obj = self
+            return True
+        elif event.type == MOUSEBUTTONDOWN and event.button == 3:
+            if self._game_object is not None:
+                print "attempting to get context menu from clicked item"
             return True
                 
         return False
@@ -164,7 +190,7 @@ class InterfaceAction(object):
         
 class ContextMenu(InterfaceObject):
     def __init__(self, manager, center, objects):
-        InterfaceObject.__init__(self, manager, None, (0,0,10,10))
+        InterfaceObject.__init__(self, manager, None, (0,0,10,10), LAYER_IFACE)
         self.center = vector.Vec2d(center)
         self.items = []
         self.icon_size = 1
@@ -196,17 +222,23 @@ class ContextMenu(InterfaceObject):
     def handle_event(self, event):
         """Handles the given input event, 
         returning True if the event should be consumed."""
+        print "Attempting to handle event in ContextMenu"
         for item in self.items:
             if item.mouse_is_over():
                 if item.handle_event(event):
                     if item.finished:
                         self.finished = True
+                    print "Context menu handled event"
                     return True                    
-        return False
+        return InterfaceObject.handle_event(self,event)
         
     def draw(self, viewport):
         point = viewport.translate_point( self.center).int_tuple
-        pygame.draw.circle( viewport.surface, (255,255,255), point, 
+        if self.mouse_is_over():
+            color = (255,255,0)
+        else:
+            color = (255,255,255)
+        pygame.draw.circle( viewport.surface, color, point, 
                             int(0.5*self.icon_size*viewport.scale))
         for item in self.items:
             item.draw(viewport)
@@ -220,6 +252,7 @@ class ContextMenuItem(InterfaceObject):
         self.action = action
         
     def handle_event(self, event):
+        print "context menu item attempting event handling"
         if event.type == MOUSEBUTTONDOWN and event.button == 1:
             if self.action is not None:
                 self.manager.do_action( self.action)

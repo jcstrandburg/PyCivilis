@@ -26,23 +26,59 @@ class CivilisApp( application.Application):
 
 class TestInterfaceObj1(interface.InterfaceObject):
     
-    def __init__(self, manager, renderer, obj=None):
+    def __init__(self, manager, renderer, layer, obj=None):
         if obj is not None:
-            interface.InterfaceObject.__init__(self, manager, renderer, obj)
+            interface.InterfaceObject.__init__(self, manager, renderer, obj, layer)
         else:
-            interface.InterfaceObject.__init__(self, manager, renderer, (0,0,100,100))
+            interface.InterfaceObject.__init__(self, manager, renderer, (0,0,100,100), layer)
     
     def update(self, viewport, mousepos):
         interface.InterfaceObject.update(self, viewport, mousepos)
+
+class TestMapInterfaceItem(interface.InterfaceObject):
+    def __init__(self, manager):
+        interface.InterfaceObject.__init__(self, manager, None, (0,0,800,600))
+        gameact = self.manager.controller
+        self.icons = gameact.icons
+        self.sz = 4
+        
+    def draw(self, viewport):
+        viewport.surface.fill( (175,140,185))
+        
+    def handle_event(self, event):
+        if event.type == MOUSEBUTTONDOWN and event.button == 3:
+            options = []
+            for x in range(self.sz):
+                options.append({ "icon": self.icons[x],
+                                 "action": TestContextAction("clicky "+str(x))})
+                   
+            cmenu = interface.ContextMenu(self.manager, event.pos, options)            
+            self.manager.set_context_menu(cmenu)
+            return True
+        elif event.type == KEYDOWN:
+            if event.key == K_COMMA:
+                self.sz -= 1
+                print self.sz
+                return True
+            elif event.key == K_PERIOD:
+                self.sz += 1
+                print self.sz        
+                return True
+                
+        return interface.InterfaceObject.handle_event(self, event)
+            
         
 class TestRenderer(interface.BaseRenderer):
     def __init__(self):
         self.img1 = pygame.Surface( (100,100))
         self.img1.fill( (255,255,100))
+        pygame.draw.rect(self.img1, (0,0,0), self.img1.get_rect(), 1)
         self.img2 = pygame.Surface( (100,100))
         self.img2.fill( (255,255,255))
+        pygame.draw.rect(self.img2, (0,0,0), self.img2.get_rect(), 1)
         self.img3 = pygame.Surface( (100,100))
-        self.img3.fill( (155,155,155))       
+        self.img3.fill( (155,155,155))
+        pygame.draw.rect(self.img3, (0,0,0), self.img3.get_rect(), 1)
         
         interface.BaseRenderer.__init__(self)
         
@@ -110,12 +146,15 @@ class TestActivity1( application.Activity):
         self.game.add_game_object( gobj)
             
         renderer = TestRenderer()
-        obj1 = TestInterfaceObj1(self.iface, renderer, gobj)
+        obj0 = TestMapInterfaceItem(self.iface)
+        obj0.layer = interface.LAYER_BASE
+        obj1 = TestInterfaceObj1(self.iface, renderer, 
+                                interface.LAYER_GAME_BG, gobj)
         obj1.rect.center = (100, 100)
-        obj2 = TestInterfaceObj1(self.iface, renderer)
+        obj2 = TestInterfaceObj1(self.iface, renderer, interface.LAYER_GAME_FG)
         obj2.rect.center = (150, 150)
-        obj2.layer = 1
         
+        self.iface.add_child( obj0)
         self.iface.add_child( obj1)
         self.iface.add_child( obj2)
 
@@ -151,38 +190,14 @@ class TestActivity1( application.Activity):
 
     def handle_event(self, event):
         if self.iface.handle_event( event):
-            print "handled"
             return
-    
+
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 4:
                 self.vp.zoom_in()
             elif event.button == 5:
                 self.vp.zoom_out()
-            elif event.button == 3:
             
-                '''if self.iface._selected_obj is not None and self.iface._selected_obj.game_object is not None:
-                    if self.iface._selected_obj.accepts_orders:
-                        print "wat"'''
-            
-                
-                options = []
-                for x in range(self.sz):
-                    options.append({ "icon": self.icons[x],
-                                     "action": TestContextAction("clicky "+str(x))})
-                                     
-                cmenu = interface.ContextMenu(self.iface, event.pos, options)            
-                self.iface.set_context_menu(cmenu)
-            elif event.button == 1:
-                self.iface.cancel_context_menu()
-                
-        if event.type == pygame.KEYDOWN:
-            if event.key == K_COMMA:
-                self.sz -= 1
-                print self.sz
-            elif event.key == K_PERIOD:
-                self.sz += 1
-                print self.sz
         
 def run():
 
