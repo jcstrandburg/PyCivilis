@@ -35,26 +35,50 @@ class TestInterfaceObj1(interface.InterfaceObject):
     def update(self, viewport, mousepos):
         interface.InterfaceObject.update(self, viewport, mousepos)
 
+class TestContextAction2(interface.InterfaceAction):
+    def __init__(self):
+        interface.InterfaceAction.__init__(self)
+        
+    def do_action(self, interface, game):
+        sobj = interface.selected_obj
+        if sobj is not None and sobj.game_object is not None:
+            sobj.game_object.rect.move_ip((-100,-100))
+        
 class TestMapInterfaceItem(interface.InterfaceObject):
     def __init__(self, manager):
         interface.InterfaceObject.__init__(self, manager, None, (0,0,800,600))
         gameact = self.manager.controller
         self.icons = gameact.icons
         self.sz = 4
+        self.image = manager.controller.resources.get("map")
         
     def draw(self, viewport):
-        viewport.surface.fill( (175,140,185))
+        #viewport.surface.fill( (175,140,185))
+        pygame.draw.rect(viewport.surface, (175,140,185), self.disp_rect)
+        img = viewport.transform.scale( self.image, viewport.scale)
+        rect = viewport.transform_rect( img.get_rect())
+        viewport.surface.blit( img, rect)
+        
         
     def handle_event(self, event):
         if event.type == MOUSEBUTTONDOWN and event.button == 3:
-            options = []
+            '''options = []
             for x in range(self.sz):
                 options.append({ "icon": self.icons[x],
-                                 "action": TestContextAction("clicky "+str(x))})
+                                 "action": TestContextAction2()})
+                                 #"action": TestContextAction("clicky "+str(x))})
                    
-            cmenu = interface.ContextMenu(self.manager, event.pos, options)            
+            cmenu = interface.ContextMenu(self.manager, event.gamepos, options)            
             self.manager.set_context_menu(cmenu)
+            return True'''
+            
+            sel = self.manager.selected_obj
+            if sel is not None and sel.game_object is not None:
+                obj = sel.game_object
+                
+                
             return True
+            
         elif event.type == KEYDOWN:
             if event.key == K_COMMA:
                 self.sz -= 1
@@ -108,11 +132,9 @@ class TestGameObject(game.GameObject):
         
     def select(self):
         game.GameObject.select(self)
-        print "Game object selected"
         
     def deselect(self):
         game.GameObject.deselect(self)
-        print "Game object deselected"
         
 class TestActivity1( application.Activity):
     """Test activity for debugging."""
@@ -189,6 +211,9 @@ class TestActivity1( application.Activity):
         self.iface.draw( self.vp)
 
     def handle_event(self, event):
+        if hasattr( event, 'pos'):
+            event.gamepos = self.vp.translate_point(event.pos, 
+                                                    viewport.SCREEN_TO_GAME)
         if self.iface.handle_event( event):
             return
 

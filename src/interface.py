@@ -22,12 +22,18 @@ class InterfaceManager( object):
         self._children = []
         self.controller = controller
         self._context_menu = None
+        self._viewport = None
+        self._mpos = (0,0)
     
     def update(self, viewport):
         """Updates all child objects with the current mouse position etc..."""
+        
+        #keep a private copy of viewport and mouse position between updates
+        self._viewport = viewport
+        self._mpos = pygame.mouse.get_pos()
+        
         #resort objects by layer
         self._children.sort( key=lambda obj: obj.layer)#probably need to use y in sorting also
-        mpos = pygame.mouse.get_pos()
         
         #remove "finished" objects
         i, j = 0, 0
@@ -43,7 +49,7 @@ class InterfaceManager( object):
                 self._context_menu = None
         
         for c in self._children:
-            c.update( viewport, mpos)
+            c.update( viewport, self._mpos)
             
     def set_context_menu(self, cmenu):
         """Cancels current context menu and sets a new one."""
@@ -54,13 +60,15 @@ class InterfaceManager( object):
         
     def cancel_context_menu(self):
         """Removes current context menu."""
-        print "wat", self._context_menu
         if self._context_menu is not None:
             self._children.remove( self._context_menu)
             self._context_menu = None
         
     def add_child(self, iobj):
+        if self._viewport is not None and self._mpos is not None:
+            iobj.update( self._viewport, self._mpos)
         self._children.append(iobj)
+        
 
     def remove_child(self, iojb):
         self._children.remove(iobj)
@@ -78,7 +86,8 @@ class InterfaceManager( object):
         return sorted(retval, key=lambda obj: -obj.layer)
                 
     def handle_event(self, event):
-        handled = False    
+        handled = False
+        
         if event.type == KEYDOWN:
             if self._selected_obj is not None:
                 handled =  self._selected_obj.handle_event(event)
@@ -101,7 +110,7 @@ class InterfaceManager( object):
             self._selected_obj = sel
             sel.select()
             
-    def _get_selected_obj(self, sel):
+    def _get_selected_obj(self):
         return self._selected_obj
         
     selected_obj = property( _get_selected_obj, _set_selected_obj)
@@ -202,7 +211,6 @@ class ContextMenu(InterfaceObject):
         for i in range( len(objects)):
             angle = (2*i*math.pi)/len(objects)
             dist = math.sqrt( len(objects)-1)*self.icon_size/2
-            #dist = pow(len(objects)-1,0.625)*self.icon_size/2*0.8
             
             pos = self.center + (math.sin(angle)*dist, -math.cos(angle)*dist)
             item = ContextMenuItem(manager, pos, objects[i]["icon"], objects[i]["action"])
@@ -216,19 +224,18 @@ class ContextMenu(InterfaceObject):
         return False
         
     def update(self, viewport, mousepos):
+        InterfaceObject.update(self, viewport, mousepos)
         for item in self.items:
             item.update(viewport, mousepos)
             
     def handle_event(self, event):
         """Handles the given input event, 
         returning True if the event should be consumed."""
-        print "Attempting to handle event in ContextMenu"
         for item in self.items:
             if item.mouse_is_over():
                 if item.handle_event(event):
                     if item.finished:
                         self.finished = True
-                    print "Context menu handled event"
                     return True                    
         return InterfaceObject.handle_event(self,event)
         
@@ -252,7 +259,6 @@ class ContextMenuItem(InterfaceObject):
         self.action = action
         
     def handle_event(self, event):
-        print "context menu item attempting event handling"
         if event.type == MOUSEBUTTONDOWN and event.button == 1:
             if self.action is not None:
                 self.manager.do_action( self.action)

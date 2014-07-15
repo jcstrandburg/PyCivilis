@@ -10,3 +10,4 @@ image ico6 settings.png
 image ico7 settings2.png
 
 image person person.png
+image map map.png

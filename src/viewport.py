@@ -5,6 +5,9 @@ Provides a class that manages the camera and screen
 from vector import Vec2d
 import transform
 
+SCREEN_TO_GAME = 0
+GAME_TO_SCREEN = 1
+
 class Viewport(object):
 
     """Class that acts as a camera viewport
@@ -44,27 +47,37 @@ class Viewport(object):
         """Zooms out 1 level."""
         self.zoom( -1)
         
-    def translate_point(self, pos):
+    def translate_point(self, pos, mode=GAME_TO_SCREEN):
         """Translates and returns the given position.
         
-        Uses the viewport's pan and zoom to translate the 
-        given coordinates, then returns the translation.
-        """    
-        #return Vec2d(pos) - self._pan * self.scale
-        newposs = Vec2d(pos) - self._pan
-        diff = newposs - self.center
-        return self.center + diff*self.scale
+        Uses the viewport's pan and zoom to translate the given coordinates,
+        then returns the translation. Depending on the mode parameter the 
+        translation is either from game to screen coords or screen to game coords.
+        """
+        if mode == GAME_TO_SCREEN:
+            newposs = Vec2d(pos) - self._pan
+            diff = newposs - self.center
+            return self.center + diff*self.scale
+        elif mode == SCREEN_TO_GAME:
+            gamepos = Vec2d(pos) + self._pan
+            diff = gamepos - self.center
+            return self.center + diff/self.scale
+        else:
+            raise ValueError("Invalid mode paramater "+str(mode))
         
-    def transform_rect(self, rect):
+    def transform_rect(self, rect, mode=GAME_TO_SCREEN):
         """Translates and returns the given rectangle.
         
-        Uses the viewport's pan and zoom to translate the 
-        given rectangle, then returns the translation.
+        Uses the viewport's pan and zoom to translate the given rectangle, then 
+        returns the translation. Depending on the mode parameter the translation 
+        is either from game to screen coords or screen to game coords.
         """    
-        point = self.translate_point( rect.center)
+        point = self.translate_point( rect.center, mode)
         rect = rect.move( point-rect.center)
+        center = rect.center
         rect.width *= self.scale
         rect.height *= self.scale
+        rect.center = center
         return rect
         
     def get_scale(self):
