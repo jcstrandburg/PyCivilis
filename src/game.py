@@ -7,6 +7,8 @@ LEFTCLICK = 1
 RIGHTCLICK = 2
 
 class Game(object):
+    """Class that provides generic game management functionality."""
+
     def __init__(self):
         self._next_id = 0
         self._objects = []
@@ -36,15 +38,17 @@ class Game(object):
         
     
 class GameObject(object):
-    def __init__(self, game):
+    """Base class for all objects that exist within the game simulation."""
+
+    def __init__(self, game, size=(100,100), position=(0,0)):
         """Initialize with the given game."""
         self.finished = False
-        self.rect = pygame.Rect(0,0,100,100)
-        self._position = vector.Vec2d( self.rect.center)
+        self.rect = pygame.Rect(0,0,size[0],size[1])
+        self.rect.center = position;
+        self._position = vector.Vec2d( position)
         self.game = game
         self._selected = False
         self.id = game.new_object_id()
-        self._selected= False        
         self._render_state = { "selected": self._selected}
 
     def _set_pos(self, pos):
@@ -54,7 +58,7 @@ class GameObject(object):
         return self._position
         
     position = property( _get_pos, _set_pos, 
-                doc="""Position of the object""")
+                doc="""Center position of the object""")
 
     def selectable(self):
         """returns whether the object is selectable"""
@@ -66,10 +70,10 @@ class GameObject(object):
     def deselect(self):
         pass
 
-    def get_selected(self):
+    def _get_selected(self):
         return self._selected
         
-    def set_selected(self, sel): 
+    def _set_selected(self, sel): 
         """Sets the selected status to the given value.
         
         Sets the selected status to the given value. 
@@ -83,7 +87,7 @@ class GameObject(object):
         elif ( old_sel == True and sel == False):
             self.on_deselect()        
 
-    selected = property(get_selected, set_selected)
+    selected = property(_get_selected, _set_selected)
             
     def on_create():
         pass

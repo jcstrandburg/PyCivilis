@@ -16,6 +16,8 @@ LAYER_GAME_FG   = 30
 LAYER_IFACE     = 40
 
 class InterfaceManager( object):
+    """Class that manages and controls a generic interface system."""
+
     def __init__(self, controller):
         """"Initialize the InterfaceManager"""
         self._selected_obj = None
@@ -33,7 +35,7 @@ class InterfaceManager( object):
         self._mpos = pygame.mouse.get_pos()
         
         #resort objects by layer
-        self._children.sort( key=lambda obj: obj.layer)#probably need to use y in sorting also
+        self._children.sort( key=lambda obj: obj.layer*1000 + obj.rect.center[1])#probably need to use y in sorting also
         
         #remove "finished" objects
         i, j = 0, 0
@@ -69,15 +71,17 @@ class InterfaceManager( object):
             iobj.update( self._viewport, self._mpos)
         self._children.append(iobj)
         
-
     def remove_child(self, iojb):
         self._children.remove(iobj)
         
     def draw(self, viewport):
+        """Draws all child objects."""
         for c in self._children:
             c.draw( viewport)
         
     def _find_mouseovers(self):
+        """Returns a list of elements under the mouse object,
+        sorted by layer (higher layers occur first in list."""
         retval = []
         for c in self._children:
             if c.mouse_is_over():
@@ -86,12 +90,19 @@ class InterfaceManager( object):
         return sorted(retval, key=lambda obj: -obj.layer)
                 
     def handle_event(self, event):
+        """Attempts to handle a pygame input event by sending it
+        to all appropriate interface objects for the given event type.
+        Will immediately return True on finding an object that handles
+        the event, or return false if the event was not handled."""
         handled = False
         
+        
         if event.type == KEYDOWN:
+            #send event to selected object
             if self._selected_obj is not None:
                 handled =  self._selected_obj.handle_event(event)
         elif event.type == MOUSEBUTTONDOWN:
+            #send event to all mouseover objects
             mouseovers = self._find_mouseovers()
             for m in mouseovers:
                 if m.handle_event(event):
@@ -191,14 +202,27 @@ class InterfaceObject(object):
     game_object = property( get_game_object)
 
 class InterfaceAction(object):
+    """Action handler for interface buttons and whatnot."""
     def __init__(self):
         pass
         
     def do_action(self, interface, game):
-        raise NotImplementedError("do_action not implemented in base InterfaceAction")
+        raise NotImplementedError("InterfaceAction.do_action")
         
 class ContextMenu(InterfaceObject):
+    """Base class for generic context menus, with options deployed 
+    in a circular model."""
+
     def __init__(self, manager, center, objects):
+        """Initializer. 
+        
+        Args:
+            manager: InterfaceManager object
+            center: The center of the menu in game coordinates
+            objects: A list of dictionaries containing information about the 
+                menu options.
+        """
+    
         InterfaceObject.__init__(self, manager, None, (0,0,10,10), LAYER_IFACE)
         self.center = vector.Vec2d(center)
         self.items = []
@@ -252,6 +276,8 @@ class ContextMenu(InterfaceObject):
         
 
 class ContextMenuItem(InterfaceObject):
+    """Base class for icon based context menu items."""
+
     def __init__(self, manager, pos, icon, action=None):
         InterfaceObject.__init__(self, manager, icon_renderer, (0,0,40,40))
         self.rect.center = pos
@@ -268,6 +294,9 @@ class ContextMenuItem(InterfaceObject):
         return False
 
 class BaseRenderer(object):
+    """Base class for renderer objects, which serve as single source
+    cached renderers for complex interface objects."""
+    
     def __init__(self):
         pass
         
@@ -280,6 +309,8 @@ class BaseRenderer(object):
         raise NotImplementedError("generate_image not implemented for BaseRenderer")        
         
 class IconRenderer(BaseRenderer):
+    """Simple icon based renderer."""
+
     def generate_image(self,object):
         return object.icon
         
