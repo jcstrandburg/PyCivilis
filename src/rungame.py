@@ -35,6 +35,7 @@ class TestInterfaceObj1(interface.InterfaceObject):
     def update(self, viewport, mousepos):
         interface.InterfaceObject.update(self, viewport, mousepos)
 
+
 class TestContextAction2(interface.InterfaceAction):
     def __init__(self):
         interface.InterfaceAction.__init__(self)
@@ -154,7 +155,7 @@ class TestActivity2( application.Activity):
             tag = "ico" + str(i)
             self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
 
-        gobj = actor.Actor(self.game)
+        gobj = actor.Actor(self.game, (500,100))
         self.game.add_game_object( gobj)
             
         renderer = TestRenderer()
@@ -163,7 +164,6 @@ class TestActivity2( application.Activity):
         
         obj1 = TestInterfaceObj1(self.iface, renderer, 
                                 interface.LAYER_GAME_BG, gobj)
-        obj1.rect.center = (100, 100)
         
         obj2 = TestInterfaceObj1(self.iface, renderer, interface.LAYER_GAME_FG)
         obj2.rect.center = (150, 150)

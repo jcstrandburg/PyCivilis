@@ -133,7 +133,9 @@ class InterfaceManager( object):
 class InterfaceObject(object):
     """Base class for all interface objects."""
     
-    def __init__(self, manager, renderer, obj_or_rect, layer=LAYER_BASE):
+    def __init__(self, manager, renderer, obj_or_rect, 
+                layer=LAYER_BASE, absolutepos=False):
+                
         self.layer = layer
         self.selected = False
         self._mouseover = False
@@ -141,10 +143,12 @@ class InterfaceObject(object):
         self.finished = False
         self.manager = manager
         self.selectable = True
+        self.absolutepos = fixedpos
         
+        print obj_or_rect.__class__.__name__
         if isinstance(obj_or_rect, game.GameObject):
             self._game_object = obj_or_rect
-            self.rect = self._game_object
+            self.rect = self._game_object.rect
         else:
             self._game_object = None
             self.rect = pygame.Rect( obj_or_rect)
