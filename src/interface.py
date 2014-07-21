@@ -61,7 +61,7 @@ class InterfaceManager( object):
             c.update( abs_mouse, rel_mouse)
             
         #resort objects by layer/position
-        self._children.sort( key=lambda obj: obj.layer*1000 + obj._space_rect.center[1])#probably need to use y in sorting also            
+        self._children.sort( key=lambda obj: obj.layer*1000)#probably need to use y in sorting also (not here, in viewport or something)
             
     def set_context_menu(self, cmenu):
         """Cancels current context menu and sets a new one."""
