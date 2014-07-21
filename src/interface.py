@@ -307,6 +307,56 @@ class Container(Widget):
         else:
             return newrect
 
+class GameObjWidget(Container):
+    """Base class for all interface objects."""
+    
+    def __init__(self, manager, renderer, obj_or_rect, 
+                layer=LAYER_BASE, absolutepos=False):
+                
+        self.layer = layer
+        self.selected = False
+        self._mouseover = False
+        self._renderer = renderer
+        self.finished = False
+        self.manager = manager
+        self.selectable = True
+        self.absolutepos = fixedpos
+        
+        print obj_or_rect.__class__.__name__
+        if isinstance(obj_or_rect, game.GameObject):
+            self._game_object = obj_or_rect
+            self.rect = self._game_object.rect
+        else:
+            self._game_object = None
+            self.rect = pygame.Rect( obj_or_rect)
+        self.disp_rect = self.rect            
+        
+    def update(self, abs_mouse, rel_mouse):
+        """Updates the display rect and mouseover status."""
+        pass
+        #need to handle updating properly
+        '''if self._game_object is not None:
+            self._base_rect = self._game_object.rect
+        self.disp_rect = viewport.transform_rect( self.rect)
+        self._mouseover = self.disp_rect.collidepoint( mousepos)'''
+        
+    def draw(self, viewport):
+        self._renderer.draw( viewport, self)
+        Container.draw(self, viewport)
+
+    def select(self):
+        Container.select()
+        self._game_object.select()
+        
+    def deselect(self):
+        Container.select()
+        self._game_object.select()
+        
+    def get_game_object(self):
+        return self._game_object
+        
+    game_object = property( get_game_object)            
+            
 class Panel(Container):
     def draw(self, viewport):
         disp_rect = self.get_disp_rect(viewport)        
