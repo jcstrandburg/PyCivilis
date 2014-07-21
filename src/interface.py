@@ -310,30 +310,17 @@ class Container(Widget):
 class GameObjWidget(Container):
     """Base class for all interface objects."""
     
-    def __init__(self, manager, renderer, obj_or_rect, 
-                layer=LAYER_BASE, absolutepos=False):
-                
-        self.layer = layer
-        self.selected = False
-        self._mouseover = False
-        self._renderer = renderer
-        self.finished = False
-        self.manager = manager
-        self.selectable = True
-        self.absolutepos = fixedpos
-        
-        print obj_or_rect.__class__.__name__
-        if isinstance(obj_or_rect, game.GameObject):
-            self._game_object = obj_or_rect
-            self.rect = self._game_object.rect
-        else:
-            self._game_object = None
-            self.rect = pygame.Rect( obj_or_rect)
-        self.disp_rect = self.rect            
+    def __init__(self, manager, obj, layer=LAYER_BASE):
+
+        Container.__init__(self,manager,obj.rect,layer,VIEW_RELATIVE)
+        self._game_object = obj
+        self._selectable = True
         
     def update(self, abs_mouse, rel_mouse):
-        """Updates the display rect and mouseover status."""
-        pass
+        if self._base_rect.center != self._game_object.rect.center:
+            self._base_rect.center = self._game_object.rect.center
+        self.update_rect()
+        Widget.update(self, abs_mouse, rel_mouse)
         #need to handle updating properly
         '''if self._game_object is not None:
             self._base_rect = self._game_object.rect
@@ -341,15 +328,24 @@ class GameObjWidget(Container):
         self._mouseover = self.disp_rect.collidepoint( mousepos)'''
         
     def draw(self, viewport):
-        self._renderer.draw( viewport, self)
+        if self.selected:
+            color = (255,255,255)
+        else:
+            color = (100,100,100)
+    
+        pygame.draw.rect(viewport.surface, color, 
+                        self.get_disp_rect(viewport))
         Container.draw(self, viewport)
+        
+    def handle_event(self, event):
+        return Widget.handle_event(self, event)
 
     def select(self):
-        Container.select()
+        Container.select(self)
         self._game_object.select()
         
     def deselect(self):
-        Container.select()
+        Container.deselect(self)
         self._game_object.select()
         
     def get_game_object(self):

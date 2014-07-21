@@ -10,7 +10,7 @@ class GameObject(object):
         """Initialize with the given game."""
         self._game = game
         self._pos = (0,0)
-        self.id = game.make_object_id()
+        self.id = game.new_object_id()
         self._selected= False        
         self._render_state = { "selected": self._selected}
 

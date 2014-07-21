@@ -44,7 +44,7 @@ class GameObject(object):
         """Initialize with the given game."""
         self.finished = False
         self.rect = pygame.Rect(0,0,size[0],size[1])
-        self.rect.center = position;
+        self.rect.center = position
         self._position = vector.Vec2d( position)
         self.game = game
         self._selected = False
@@ -52,7 +52,7 @@ class GameObject(object):
         self._render_state = { "selected": self._selected}
 
     def _set_pos(self, pos):
-        self.rect.center = self._position = pos
+        self.rect.center = self._position = vector.Vec2d(pos)
         
     def _get_pos(self):
         return self._position

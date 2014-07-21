@@ -122,6 +122,10 @@ class TestContextAction(interface.InterfaceAction):
         print "interface action: "+self.message
         return True
         
+class TestObject(game.GameObject):
+    def update(self):
+        self.position += (1,0)
+        
 class WidgetActivity( application.Activity):
     """Test activity for debugging."""
     
@@ -184,6 +188,13 @@ class WidgetActivity( application.Activity):
         
         icon = interface.IconWidget(self.iface, self.icons[0], (400,500))
         #self.iface.add_child( icon)
+        
+        testobj = TestObject(self.game)
+        testobj.position = (100,400)
+        self.game.add_game_object(testobj)
+        
+        testwidg = interface.GameObjWidget( self.iface, testobj)
+        self.iface.add_child( testwidg)       
 
 
     def update(self):
