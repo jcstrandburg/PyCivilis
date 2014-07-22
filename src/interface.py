@@ -152,6 +152,10 @@ class InterfaceManager( object):
     def remove_mousemotion_listener(self, widget):
         self._motion_listeners.remove(widget)
 
+"""
+Widget strategy functions
+"""
+        
 class Widget(object):
     
     def __init__(self, manager, rect, layer=LAYER_BASE, view_style=VIEW_RELATIVE):
