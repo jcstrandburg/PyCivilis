@@ -45,6 +45,28 @@ class TestContextAction(interface.InterfaceAction):
 class TestObject(game.GameObject):
     def update(self):
         self.position += (1,0)
+
+class MapMoveAction(interface.InterfaceAction):
+    def __init__(self, coords):
+        self._coords = coords
+        
+    def do_action(self, src_widget, interface, game):
+        obj = interface.selected_obj
+        if hasattr(obj, "game_object"):
+            obj.game_object.set_order(actor.MoveOrder(obj.game_object, game, self._coords))
+        
+class TestMapWidget(interface.Widget):
+    def __init__(self, manager):
+        interface.Widget.__init__(self, manager, (0,0,800,600), interface.LAYER_BASE, interface.VIEW_FIXED)
+        self._selectable = False
+
+    def draw(self, viewport):
+        pygame.draw.rect(viewport.surface, (150,50,150), self.get_disp_rect(viewport))
+        
+    def handle_event(self, event):
+        if event.type == MOUSEBUTTONDOWN and event.button == 3:
+            self.manager.do_action(self, MapMoveAction(event.gamepos))
+            return True
         
 class WidgetActivity( application.Activity):
     """Test activity for debugging."""
@@ -69,6 +91,8 @@ class WidgetActivity( application.Activity):
             tag = "ico" + str(i)
             self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
 
+        #self.iface.add_child( TestMapWidget(self.iface))
+            
         self.container = interface.Panel( self.iface, (0,0,300,200))
             
         self.test1 = interface.TestWidget( self.iface, (50,50,100,30))
@@ -109,8 +133,7 @@ class WidgetActivity( application.Activity):
         icon = interface.IconWidget(self.iface, self.icons[0], (400,500))
         #self.iface.add_child( icon)
         
-        testobj = TestObject(self.game)
-        testobj.position = (100,400)
+        testobj = actor.Actor(self.game, (100,400))
         self.game.add_game_object(testobj)
         
         testwidg = interface.GameObjWidget( self.iface, testobj)
@@ -160,31 +183,38 @@ class WidgetActivity( application.Activity):
             elif event.button == 5:
                 self.vp.zoom_out()
             elif event.button == 3:
-                options = []
+                '''options = []
                 for x in range(self.options):
                     options.append({ "icon": self.icons[x],
                                      "action": TestContextAction("Action: "+str(x))})
 
                 cm = interface.RadialContextMenu(self.iface, (450,450), options)
-                self.iface.set_context_menu(cm)            
+                self.iface.set_context_menu(cm)'''
                 
-                
+                options = []
+                for x in range(self.options):
+                    options.append({ "text": "Option "+str(x),
+                                     "action": TestContextAction("Action: "+str(x))})
+
+                cm = interface.TextContextMenu(self.iface, (400,400), options)
+                self.iface.set_context_menu(cm)
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:
                 self.options = max(self.options-1, 1)
             elif event.key == K_PERIOD:
-                self.options = min(self.options+1, 8)
-                
-
-            
+                self.options = min(self.options+1, 8)                
         
 def run():
 
+    print "k"
     app = CivilisApp()
+    print "y"
     app.start_activity( WidgetActivity, None)
     
+    print "wat"
     while app.update():
         app.draw()
         
+    print "huh"
     app.cleanup()

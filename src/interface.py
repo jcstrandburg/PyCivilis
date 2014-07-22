@@ -281,6 +281,7 @@ class Container(Widget):
             c.draw(viewport) 
 
     def handle_event(self, event):
+        consumed = False
         for c in self._children:
             consumed = c.handle_event(event)
             if consumed:
@@ -476,6 +477,59 @@ class IconWidget(Widget):
     def handle_event(self, event):
         """Handles a pygame input event."""
         return Widget.handle_event(self, event)
+
+class TextContextMenu(Panel):
+    def __init__(self, manager, position, objects):
+        rect = pygame.Rect(position[0],position[1],200,len(objects)*18+14)
+        Panel.__init__(self,manager,rect)
+
+        """Initializer"""
+        self._options = []
+        for i in xrange(len(objects)):
+            w = TextButton(manager, (10, i*18+7), "smallfont", StaticText( objects[i]["text"]))
+            w.set_lclick_action( objects[i]["action"])
+            self.add_child( w)
+        
+        '''    
+        
+        self.icon_size = 1
+        for obj in objects:
+            icon = obj["icon"]
+            self.icon_size = max(self.icon_size, icon.get_width(), icon.get_height())
+            
+        dist = math.sqrt( len(objects)-1)*self.icon_size/2
+        self._radius = dist
+        rect = pygame.Rect(0,0, 2*self.icon_size+self.icon_size, 2*self.icon_size+self.icon_size)
+        rect.center = center
+        
+        Container.__init__(self, manager, rect, LAYER_IFACE)
+        
+        for i in range( len(objects)):
+            angle = (2*i*math.pi)/len(objects)
+            
+            pos = (math.sin(angle)*dist, -math.cos(angle)*dist)
+            item = IconWidget(manager, objects[i]["icon"], pos)
+            item.set_lclick_action( objects[i]["action"])
+            self.add_child( item)
+        
+    def draw(self, viewport):
+        point = viewport.translate_point( self._space_rect.center)
+        if self.mouse_is_over():
+            color = (255,255,0)
+        else:
+            color = (255,255,255)
+        if self._radius > 1:
+            pygame.draw.circle( viewport.surface, color, point.int_tuple, 
+                                int(self._radius*viewport.scale), 1)
+                            
+        Container.draw(self, viewport)
+        
+    def mouse_is_over(self):
+        """Returns true if the mouse is over any of the menu items."""
+        for item in self._children:
+            if item.mouse_is_over():
+                return True
+        return False        '''
         
 class InterfaceAction(object):
     """Action handler for interface buttons and whatnot."""
