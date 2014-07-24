@@ -455,6 +455,8 @@ class DragBar(BaseWidget):
                 self._parent.move( event.rel)
                 
 class DragPanel(TestPanel):
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
+
     def __init__(self, manager, rect, layer=LAYER_BASE):
         TestPanel.__init__(self, manager, rect, layer)
         dragrect = pygame.Rect(rect).inflate( (-4,0))
