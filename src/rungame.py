@@ -33,57 +33,7 @@ class TestContextAction2(interface.InterfaceAction):
         if sobj is not None and sobj.game_object is not None:
             sobj.game_object.rect.move_ip((-100,-100))
         
-"""class TestMapInterfaceItem(interface.InterfaceObject):
-    def __init__(self, manager):
-        interface.InterfaceObject.__init__(self, manager, None, (0,0,800,600))
-        gameact = self.manager.controller
-        self.icons = gameact.icons
-        self.sz = 4
-        self.image = manager.controller.resources.get("map")
-        
-    def draw(self, viewport):
-        #viewport.surface.fill( (175,140,185))
-        pygame.draw.rect(viewport.surface, (175,140,185), self.disp_rect)
-        img = viewport.transform.scale( self.image, viewport.scale)
-        rect = viewport.transform_rect( img.get_rect())
-        viewport.surface.blit( img, rect)
-        
-        
-    def handle_event(self, event):
-        if event.type == MOUSEBUTTONDOWN and event.button == 3:
-            '''options = []
-            for x in range(self.sz):
-                options.append({ "icon": self.icons[x],
-                                 "action": TestContextAction2()})
-                                 #"action": TestContextAction("clicky "+str(x))})
-                   
-            cmenu = interface.ContextMenu(self.manager, event.gamepos, options)            
-            self.manager.set_context_menu(cmenu)
-            return True'''
-            
-            sel = self.manager.selected_obj
-            if sel is not None and sel.game_object is not None:
-                obj = sel.game_object
-                if hasattr(obj, "set_order"):
-                    order = actor.MoveOrder(obj, self.manager.controller.game, 
-                                            event.gamepos)
-                    obj.set_order( order)
-                
-            return True
-            
-        elif event.type == KEYDOWN:
-            if event.key == K_COMMA:
-                self.sz -= 1
-                print self.sz
-                return True
-            elif event.key == K_PERIOD:
-                self.sz += 1
-                print self.sz        
-                return True
-                
-        return interface.InterfaceObject.handle_event(self, event)
-            
-        
+"""        
 class TestRenderer(interface.BaseRenderer):
     def __init__(self):
         size = (50,50)
@@ -112,7 +62,18 @@ class TestRenderer(interface.BaseRenderer):
             return self.img2
         else:
             return self.img3"""
+            
+class IncrementText(interface.TextGenerator):
+    def __init__(self, x):
+        self.x = x
 
+    def text_changed(self):
+        self.x += 1
+        return True
+        
+    def get_text(self):
+        return str(self.x)
+        
 class TestContextAction(interface.InterfaceAction):
     def __init__(self, message):
         self.message = message
@@ -149,20 +110,22 @@ class WidgetActivity( application.Activity):
             tag = "ico" + str(i)
             self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
 
-        self.container = interface.Panel( self.iface, (0,0,300,200))
+        self.container = interface.TestPanel( self.iface, (0,0,300,200))
             
         self.test1 = interface.TestWidget( self.iface, (50,50,100,30))
         self.test2 = interface.TestWidget( self.iface, (50,100,100,30))
         self.test3 = interface.TestWidget( self.iface, (50,150,100,30))
-            
+        self.dragbar = interface.DragBar( self.iface, (2,2,296,20))
+        
         self.container.add_child( self.test1)
         self.container.add_child( self.test2)
         self.container.add_child( self.test3)
+        self.container.add_child( self.dragbar)
         
         self.iface.add_child( self.container)        
 
-        self.container2 = interface.DraggablePanel( self.iface, 
-                            (350,100,375,200), view_style=interface.VIEW_FIXED)
+        self.container2 = interface.DragPanel( self.iface, 
+                            (350,100,375,200))
         
         self.testa = interface.TestWidget( self.iface, (25,50,100,30))
         self.testb = interface.TestWidget( self.iface, (25,100,100,30))
@@ -171,7 +134,8 @@ class WidgetActivity( application.Activity):
         text = interface.StaticText("Lorem ipsum delores")
         basetext = interface.StaticText("Options: ")
         optionstext = interface.LambdaTextGenerator( lambda: self.options)
-        comptext = interface.CompositeTextGenerator((basetext, optionstext))
+        inctext = IncrementText(0)
+        comptext = interface.CompositeTextGenerator((basetext, inctext))
         
         self.text1 = interface.TextLabel( self.iface, (135,50), "medfont", comptext)
         self.text2 = interface.TextButton( self.iface, (135,100), "medfont", text, TestContextAction("Clicky"))
@@ -186,13 +150,9 @@ class WidgetActivity( application.Activity):
         
         self.iface.add_child( self.container2)
         
-        icon = interface.IconWidget(self.iface, self.icons[0], (400,500))
-        #self.iface.add_child( icon)
-        
         testobj = TestObject(self.game)
         testobj.position = (100,400)
-        self.game.add_game_object(testobj)
-        
+        self.game.add_game_object(testobj)        
         testwidg = interface.GameObjWidget( self.iface, testobj)
         self.iface.add_child( testwidg)       
 
@@ -205,7 +165,7 @@ class WidgetActivity( application.Activity):
         self.game.update()        
         
         pos = (0, 150+75*math.sin(self.ticker/40.0))
-        self.container.move_to( pos)
+        #self.container.move_to( pos)
         
         pressed = pygame.key.get_pressed()
             
@@ -240,15 +200,13 @@ class WidgetActivity( application.Activity):
             elif event.button == 5:
                 self.vp.zoom_out()
             elif event.button == 3:
-                options = []
+                '''options = []
                 for x in range(self.options):
                     options.append({ "icon": self.icons[x],
                                      "action": TestContextAction("Action: "+str(x))})
 
-                cm = interface.RadialContextMenu(self.iface, (450,450), options)
-                self.iface.set_context_menu(cm)            
-                
-                
+                cm = interface.RadialContextMenu(self.iface, event.pos, options)
+                self.iface.set_context_menu(cm)'''
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:
