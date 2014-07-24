@@ -111,7 +111,7 @@ class WidgetActivity( application.Activity):
             self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
 
         self.container = interface.TestPanel( self.iface, (0,0,300,200))
-            
+
         self.test1 = interface.TestWidget( self.iface, (50,50,100,30))
         self.test2 = interface.TestWidget( self.iface, (50,100,100,30))
         self.test3 = interface.TestWidget( self.iface, (50,150,100,30))
@@ -150,7 +150,7 @@ class WidgetActivity( application.Activity):
         
         self.iface.add_child( self.container2)
         
-        testobj = TestObject(self.game)
+        testobj = actor.Actor(self.game, (50, 400))
         testobj.position = (100,400)
         self.game.add_game_object(testobj)        
         testwidg = interface.GameObjWidget( self.iface, testobj)
@@ -207,6 +207,11 @@ class WidgetActivity( application.Activity):
 
                 cm = interface.RadialContextMenu(self.iface, event.pos, options)
                 self.iface.set_context_menu(cm)'''
+                
+                so = self.iface.selected_obj
+                if so is not None and hasattr(so, 'game_object'):
+                    go = so.game_object
+                    go.set_order( actor.MoveOrder(go,self.game,event.pos))
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:
