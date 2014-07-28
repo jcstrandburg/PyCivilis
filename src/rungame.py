@@ -183,7 +183,7 @@ class WidgetActivity( application.Activity):
         
         pos = pygame.mouse.get_pos()
         pygame.draw.circle( self.vp.surface, (255,255,255), pos, 
-                            int(15*self.vp.scale), 4)
+                            int(15*self.vp.scale), int(self.vp.scale*4))
 
         self.iface.draw( self.vp)
 
@@ -191,6 +191,13 @@ class WidgetActivity( application.Activity):
         if hasattr( event, 'pos'):
             event.gamepos = self.vp.translate_point(event.pos, 
                                                     viewport.SCREEN_TO_GAME)
+            print event.gamepos
+                                                    
+        if hasattr( event, 'rel'):
+            event.rel_motion = (round(event.rel[0]/self.vp.scale),
+                                round(event.rel[1]/self.vp.scale))
+            event.abs_motion = event.rel
+                                                    
         if self.iface.handle_event( event):
             return
 
@@ -211,7 +218,7 @@ class WidgetActivity( application.Activity):
                 so = self.iface.selected_obj
                 if so is not None and hasattr(so, 'game_object'):
                     go = so.game_object
-                    go.set_order( actor.MoveOrder(go,self.game,event.pos))
+                    go.set_order( actor.MoveOrder(go,self.game,event.gamepos))
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:
@@ -219,13 +226,102 @@ class WidgetActivity( application.Activity):
             elif event.key == K_PERIOD:
                 self.options = min(self.options+1, 8)
                 
+class ViewportActivity( application.Activity):
+    """Test activity for debugging."""
+    
+    def on_create(self, config):
+        application.Activity.on_create(self, config)
+        self.controller.set_fps_cap( 50)
+        self.vp = viewport.Viewport( self.controller.screen)
+        self.vp.transform.set_rotation_interval( 5)
+        
+        self.iface = interface.InterfaceManager(self)
+        self.game = game.Game()
 
+        self.resources = resourcemanager.ResourceManager()
+        self.resources.load_set("res/resources.txt")
+
+        '''img = pygame.transform.smoothscale(self.resources.get("ico1"), (20,20))
+        self.icon = interface.IconWidget(self.iface, img, (0,0))
+        self.iface.add_child( self.icon)
+        self.iface.add_child(interface.IconWidget(self.iface, img, (40,-40)))
+        self.iface.add_child(interface.IconWidget(self.iface, img, (40,0)))
+        self.iface.add_child(interface.IconWidget(self.iface, img, (40,40)))
+        self.iface.add_child(interface.IconWidget(self.iface, img, (-40,-40)))
+        elf.iface.add_child(interface.IconWidget(self.iface, img, (-40,0)))
+        self.iface.add_child(interface.IconWidget(self.iface, img, (-40,40)))
+        self.iface.add_child(interface.IconWidget(self.iface, img, (0,-40)))
+        self.iface.add_child(interface.IconWidget(self.iface, img, (0,40)))'''
+
+        self.iface.add_child(interface.VPWidget(self.iface, (-40, -40)))
+        self.iface.add_child(interface.VPWidget(self.iface, (-40, 0)))
+        self.iface.add_child(interface.VPWidget(self.iface, (-40, 40)))
+        self.iface.add_child(interface.VPWidget(self.iface, (0, -40)))
+        self.iface.add_child(interface.VPWidget(self.iface, (0, 0)))
+        self.iface.add_child(interface.VPWidget(self.iface, (0, 40)))
+        self.iface.add_child(interface.VPWidget(self.iface, (40, -40)))
+        self.iface.add_child(interface.VPWidget(self.iface, (40, 0)))
+        self.iface.add_child(interface.VPWidget(self.iface, (40, 40)))
+        
+    def update(self):
+        application.Activity.update(self)
+        self.iface.update( self.vp)
+        self.game.update()        
+        
+        pressed = pygame.key.get_pressed()
             
+        if pressed[K_d]:
+            self.vp.pan( (2,0))
+        elif pressed[K_a]:
+            self.vp.pan( (-2,0))
+        if pressed[K_s]:
+            self.vp.pan( (0,2))
+        elif pressed[K_w]:
+            self.vp.pan( (0,-2))
+            
+    def draw(self):
+        application.Activity.draw(self)
+        
+        pos = pygame.mouse.get_pos()
+        pygame.draw.circle( self.vp.surface, (255,255,255), pos, 
+                            int(15*self.vp.scale), int(self.vp.scale*4))
+
+        self.iface.draw( self.vp)
+
+    def handle_event(self, event):
+        if hasattr( event, 'pos'):
+            event.gamepos = self.vp.translate_point(event.pos, 
+                                                    viewport.SCREEN_TO_GAME)
+                                                    
+        if hasattr( event, 'rel'):
+            event.rel_motion = (round(event.rel[0]/self.vp.scale),
+                                round(event.rel[1]/self.vp.scale))
+            event.abs_motion = event.rel
+                                                    
+        if self.iface.handle_event( event):
+            return
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 4:
+                self.vp.zoom_in()
+            elif event.button == 5:
+                self.vp.zoom_out()
+            elif event.button == 3:
+                print event.pos, event.gamepos
+                self.icon.center_on( event.gamepos)
+            elif event.button == 1:
+                print event.pos, event.gamepos
+                
+        if event.type == pygame.KEYDOWN:
+            if event.key == K_COMMA:
+                self.options = max(self.options-1, 1)
+            elif event.key == K_PERIOD:
+                self.options = min(self.options+1, 8)            
         
 def run():
 
     app = CivilisApp()
-    app.start_activity( WidgetActivity, None)
+    app.start_activity( ViewportActivity, None)
     
     while app.update():
         app.draw()

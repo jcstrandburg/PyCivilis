@@ -305,6 +305,7 @@ class BaseWidget(WidgetBehavior):
         self.finished = False
         self._mouseover = False
         self._base_rect = pygame.Rect(rect)
+        self._disp_rect = self._space_rect = self._base_rect
         self._parent = None
         self._selectable = True
         self._lclick_action = None
@@ -317,9 +318,6 @@ class BaseWidget(WidgetBehavior):
         self._parent = p
         self.get_disp_rect = types.MethodType(p.get_disp_rect.__func__, self)
         self.update_rect()
-       
-    def draw(self, viewport):
-        raise NotImplementedError("BaseWidget.draw")
         
     def select(self):
         self.selected = True
@@ -452,7 +450,7 @@ class DragBar(BaseWidget):
             return True
         elif event.type == MOUSEMOTION:
             if self._parent is not None:
-                self._parent.move( event.rel)
+                self._parent.move( event.rel_motion)
                 
 class DragPanel(TestPanel):
     get_disp_rect = BaseWidget._absolute_get_disp_rect
@@ -479,6 +477,18 @@ class IconWidget(BaseWidget):
         
     def _draw_self(self, viewport):
         viewport.surface.blit(self.icon, self._disp_rect)
+        
+class VPWidget(TestWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+
+    def __init__(self, manager, center, layer=LAYER_IFACE):
+        rect = pygame.Rect(0,0,20,20)
+        rect.center = center
+        TestWidget.__init__(self, manager, rect, layer)
+        self._selectable = False
         
 class RadialContextMenu(BaseWidget):
     """Base class for generic context menus, with options deployed 
