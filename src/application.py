@@ -87,7 +87,7 @@ class Application(object):
         self.fps = self.fps * self.fps_bias + self.clock.get_fps()*(1-self.fps_bias)
         
         if self.fps != float("inf"):
-            pygame.display.set_caption( str(int(self.fps))) #this seems to cause a memory leak or something, causing the game to hange on pygame.quit
+            pygame.display.set_caption( str(round(self.fps))) #this seems to cause a memory leak or something, causing the game to hange on pygame.quit
             
         #if the stack activity isn't empty
         if top is not None:

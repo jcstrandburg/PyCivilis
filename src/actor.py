@@ -101,5 +101,5 @@ class MoveOrder(Order):
 
     def _state_wander(self):
         self.task_state = self._state_wander
-        dest = self._dest + (random.uniform(-50.0, 50.0), random.uniform(-50.0, 50.0))
-        return SimpleMoveTask(dest, 0.3)
+        dest = self._dest + (random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0))
+        return SimpleMoveTask(dest, 0.15)

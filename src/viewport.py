@@ -18,14 +18,14 @@ class Viewport(object):
     def __init__(self, surface):
         """Initializes the viewport with the given surface as the screen."""
         self.surface = surface
-        self._pan = Vec2d(0, 0)
         self._zoom = 0
         self.center = Vec2d(surface.get_width()/2, surface.get_height()/2)        
+        self._pan = Vec2d(0,0)
         self._zoomcache = {}
         self.transform = transform.TransformCache()
 
-        self.MAXZOOM = 6
-        self.MINZOOM = -6
+        self.MAXZOOM = 4
+        self.MINZOOM = -4
 
     def clear(self, color=(0,0,0)):
         """Clear the screen surface."""
@@ -38,6 +38,7 @@ class Viewport(object):
     def zoom(self, zlev):
         """Increments the zoom level by the given amount."""
         self._zoom = min( self.MAXZOOM, max( self.MINZOOM, self._zoom+zlev))
+        print self._zoom, self.scale
         
     def zoom_in(self):
         """Zooms in 1 level."""
@@ -55,13 +56,15 @@ class Viewport(object):
         translation is either from game to screen coords or screen to game coords.
         """
         if mode == GAME_TO_SCREEN:
-            newposs = Vec2d(pos) - self._pan
-            diff = newposs - self.center
-            return self.center + diff*self.scale
+            return self.center + (-self._pan+pos)*self.scale
+        
+            '''newpos = Vec2d(pos)*self.scale - self._pan
+            return newpos + self.center'''
         elif mode == SCREEN_TO_GAME:
-            gamepos = Vec2d(pos) + self._pan
-            diff = gamepos - self.center
-            return self.center + diff/self.scale
+            return (-self.center + pos)/self.scale + self._pan
+        
+            '''newpos = Vec2d(pos)/self.scale + self._pan
+            return newpos - self.center'''
         else:
             raise ValueError("Invalid mode paramater "+str(mode))
         
@@ -73,19 +76,19 @@ class Viewport(object):
         is either from game to screen coords or screen to game coords.
         """    
         point = self.translate_point( rect.center, mode)
-        rect = rect.move( point-rect.center)
-        center = rect.center
-        rect.width *= self.scale
-        rect.height *= self.scale
-        rect.center = center
-        return rect
+        newrect = rect.copy()
+        newrect.width *= self.scale
+        newrect.height *= self.scale
+        newrect.center = point
+        return newrect
         
     def get_scale(self):
         """Returns the viewport's scale factor based on zoom."""
-        if self._zoom >= 0:
+        '''if self._zoom >= 0:
             return self._zoom+1
         else:
-            return 1.0/(1-self._zoom)
-        #return math.pow( 2, self._zoom)
+            return 1.0/(1-self._zoom)'''
+        #return pow( 2, 0.5*self._zoom)
+        return pow( 2, self._zoom)
         
     scale = property(get_scale)

@@ -3,11 +3,12 @@
 import pygame
 from pygame.locals import *
 import math
-import game
+import types
 
 #local imports
 import vector
 import viewport as viewport_mod #avoiding conflicts with variable names
+import game
 
 #layers
 LAYER_BASE      = 0
@@ -54,11 +55,11 @@ class InterfaceManager( object):
             if self._context_menu.finished:
                 self.cancel_context_menu()
 
-        abs_mouse = pygame.mouse.get_pos()
-        rel_mouse = viewport.translate_point( abs_mouse, viewport_mod.SCREEN_TO_GAME)
+        #abs_mouse = pygame.mouse.get_pos()
+        #rel_mouse = viewport.translate_point( abs_mouse, viewport_mod.SCREEN_TO_GAME)
                 
         for c in self._children:
-            c.update( abs_mouse, rel_mouse)
+            c.update( viewport, pygame.mouse.get_pos())
             
         #resort objects by layer/position
         self._children.sort( key=lambda obj: obj.layer*1000)#probably need to use y in sorting also (not here, in viewport or something)
@@ -92,7 +93,7 @@ class InterfaceManager( object):
         sorted by layer (higher layers occur first in list."""
         retval = []
         for c in self._children:
-            if c.mouse_is_over():
+            if c._mouseover:
                 retval.append( c)
 
         return sorted(retval, key=lambda obj: -obj.layer)
@@ -152,385 +153,8 @@ class InterfaceManager( object):
     def remove_mousemotion_listener(self, widget):
         self._motion_listeners.remove(widget)
 
-class Widget(object):
-    
-    def __init__(self, manager, rect, layer=LAYER_BASE, view_style=VIEW_RELATIVE):
-        self.manager = manager    
-        self.layer = layer
-        self.selected = False
-        self.finished = False
-        self._mouseover = False
-        self._base_rect = pygame.Rect(rect)
-        self._parent = None
-        self._selectable = True
-        self._lclick_action = None
-        self._rclick_action = None
-        self.view_style = view_style
-        self.update_rect()
-
-    def set_parent(self, p):
-        self._parent = p
-        self.update_rect()
         
-    def update_rect(self):
-        if self._parent is not None:
-            self._space_rect = self._parent.translate_rect( self._base_rect)
-        else:
-            self._space_rect = self._base_rect
-        
-    def mouse_is_over(self):
-        """Returns true if the mouse is over this object."""
-        return self._mouseover
-        
-    def update(self, abs_mouse, rel_mouse):
-        """Updates the display rect and mouseover status."""
-        mousepos = rel_mouse if self.view_style == VIEW_RELATIVE else abs_mouse
-        self._mouseover = self._space_rect.collidepoint( mousepos)
-        
-    def draw(self, viewport):
-        pass
-        
-    def select(self):
-        self.selected = True
-    
-    def deselect(self):
-        self.selected = False
-
-    def handle_event(self, event):
-        """Handles a pygame input event."""
-        
-        handled = False
-        if self.mouse_is_over():
-            if event.type == MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    if self._lclick_action is not None:
-                        handled = handled or self.manager.do_action( self, self._lclick_action)
-                    if self._selectable:
-                        self.manager.selected_obj = self
-                        handled = True
-                elif event.button == 3:
-                    if self._rclick_action is not None:
-                        handled = handled or self.manager.do_action( self, self._rclick_action)                        
-                
-        return handled
-        
-    def move(self, offset):
-        self._base_rect.move_ip( offset)
-        self.update_rect()
-        
-    def move_to(self, pos):
-        self._base_rect.topleft = pos
-        self.update_rect()
-        
-    def center_on(self, pos):
-        self._base_rect.center = pos
-        self.update_rect()
-        
-    def get_disp_rect(self, viewport):
-        if self.view_style == VIEW_FIXED:
-            return self._space_rect
-        else:
-            return viewport.transform_rect( self._space_rect)
-            
-    def set_lclick_action(self, action):
-        self._lclick_action = action
-        
-    def set_rclick_action(self, action):
-        self._rclick_action = action
-        
-class TestWidget(Widget):
-
-    def draw(self, viewport):
-        screen = viewport.surface
-        if self.mouse_is_over():
-            color = (255,255,100)
-        elif self.selected:
-            color = (255,255,255)
-        else:
-            color = (150,150,150)
-
-        disp_rect = self.get_disp_rect(viewport)        
-        pygame.draw.rect( viewport.surface, (0,0,0), disp_rect)
-        pygame.draw.rect( viewport.surface, color, disp_rect.inflate((-2,-2)))
-
-class Container(Widget):
-    def __init__(self, manager, rect, layer=LAYER_BASE, view_style=VIEW_RELATIVE):
-        self._children = []
-        self._zoom = 0
-        Widget.__init__(self, manager, rect, layer, view_style)
-        self.clamp = False
-        self._selectable = False
-        
-    def update_rect(self):
-        Widget.update_rect(self)
-            
-        for c in self._children:
-            c.update_rect()
-        
-    def update(self, abs_mouse, rel_mouse):
-        Widget.update(self, abs_mouse, rel_mouse)
-
-        for c in self._children:
-            c.update(abs_mouse, rel_mouse)
-
-        #resort by layer and display position
-        self._children.sort( key=lambda obj: obj.layer*1000 + obj._space_rect.center[1])#probably need to use y in sorting also                        
-            
-    def draw(self, viewport):
-        for c in self._children:
-            c.draw(viewport) 
-
-    def handle_event(self, event):
-        consumed = False
-        for c in self._children:
-            consumed = c.handle_event(event)
-            if consumed:
-                return consumed
-
-        return consumed
-        
-    def add_child(self, widg):
-        widg.set_parent( self)
-        widg.view_style = self.view_style
-        self._children.append(widg)
-        
-    def remove_child(self, widg):
-        self._children.remove(widg)
-        
-    def translate_point(self, pos):
-        return Vec2d(pos) + self._space_rect.topleft
-        
-    def translate_rect(self, rect):
-        newrect = rect.move( self._space_rect.topleft)
-            
-        if self.clamp:
-            return newrect.clamp( self._space_rect)
-        else:
-            return newrect
-
-class GameObjWidget(Container):
-    """Base class for all interface objects."""
-    
-    def __init__(self, manager, obj, layer=LAYER_BASE):
-
-        Container.__init__(self,manager,obj.rect,layer,VIEW_RELATIVE)
-        self._game_object = obj
-        self._selectable = True
-        
-    def update(self, abs_mouse, rel_mouse):
-        if self._base_rect.center != self._game_object.rect.center:
-            self._base_rect.center = self._game_object.rect.center
-        self.update_rect()
-        Widget.update(self, abs_mouse, rel_mouse)
-        #need to handle updating properly
-        '''if self._game_object is not None:
-            self._base_rect = self._game_object.rect
-        self.disp_rect = viewport.transform_rect( self.rect)
-        self._mouseover = self.disp_rect.collidepoint( mousepos)'''
-        
-    def draw(self, viewport):
-        if self.selected:
-            color = (255,255,255)
-        else:
-            color = (100,100,100)
-    
-        pygame.draw.rect(viewport.surface, color, 
-                        self.get_disp_rect(viewport))
-        Container.draw(self, viewport)
-        
-    def handle_event(self, event):
-        return Widget.handle_event(self, event)
-
-    def select(self):
-        Container.select(self)
-        self._game_object.select()
-        
-    def deselect(self):
-        Container.deselect(self)
-        self._game_object.select()
-        
-    def get_game_object(self):
-        return self._game_object
-        
-    game_object = property( get_game_object)            
-            
-class Panel(Container):
-    def draw(self, viewport):
-        disp_rect = self.get_disp_rect(viewport)        
-        pygame.draw.rect( viewport.surface, (0,0,0), disp_rect)
-        pygame.draw.rect( viewport.surface, (225,225,225), disp_rect.inflate((-4,-4)))
-        
-        Container.draw(self, viewport)
-        
-class DraggablePanel(Panel):
-    def __init__(self, manager, rect, layer=LAYER_BASE, view_style=VIEW_RELATIVE):
-        Panel.__init__(self, manager, rect, layer, view_style)
-        self._dragging = False           
-
-    def update_rect(self):
-        Panel.update_rect(self)
-        self._dragbar_rect = self._space_rect.inflate((-4,-4))
-        self._dragbar_rect.h = 20
-
-    def draw(self, viewport):
-        disp_rect = self.get_disp_rect(viewport)        
-        drag_disp_rect = viewport.transform_rect( self._dragbar_rect)
-        pygame.draw.rect( viewport.surface, (0,0,0), disp_rect)
-        pygame.draw.rect( viewport.surface, (225,225,225), disp_rect.inflate((-4,-4)))
-        pygame.draw.rect( viewport.surface, (100,100,200), drag_disp_rect)
-        
-        Container.draw(self, viewport)
-        
-    def update(self, abs_mouse, rel_mouse):
-        Panel.update(self, abs_mouse, rel_mouse)
-        mousepos = rel_mouse if self.view_style == VIEW_RELATIVE else abs_mouse        
-        self._mouse_over_dragbar = self._dragbar_rect.collidepoint( mousepos)
-        
-    def handle_event(self, event):
-        """Handles a pygame input event."""
-        
-        if self._mouse_over_dragbar and event.type==MOUSEBUTTONDOWN and event.button == 1:
-            self._dragging = True
-            self.manager.add_mousemotion_listener( self)
-            return True
-            
-        elif self._dragging:
-            if event.type == MOUSEMOTION:
-                self.move( event.rel)
-            elif event.type == MOUSEBUTTONUP and event.button == 1:
-                self._dragging = False
-                self.manager.remove_mousemotion_listener(self)
-                return True
-                
-        return Panel.handle_event(self, event)        
-        
-        
-class RadialContextMenu(Container):
-    """Base class for generic context menus, with options deployed 
-    in a circular model."""
-
-    def __init__(self, manager, center, objects):
-        """Initializer. 
-        
-        Args:
-            manager: InterfaceManager object
-            center: The center of the menu in game coordinates
-            objects: A list of dictionaries containing information about the 
-                menu options.
-        """
-        self.icon_size = 1
-        for obj in objects:
-            icon = obj["icon"]
-            self.icon_size = max(self.icon_size, icon.get_width(), icon.get_height())
-            
-        dist = math.sqrt( len(objects)-1)*self.icon_size/2
-        self._radius = dist
-        rect = pygame.Rect(0,0, 2*self.icon_size+self.icon_size, 2*self.icon_size+self.icon_size)
-        rect.center = center
-        
-        Container.__init__(self, manager, rect, LAYER_IFACE)
-        
-        for i in range( len(objects)):
-            angle = (2*i*math.pi)/len(objects)
-            
-            pos = (math.sin(angle)*dist, -math.cos(angle)*dist)
-            item = IconWidget(manager, objects[i]["icon"], pos)
-            item.set_lclick_action( objects[i]["action"])
-            self.add_child( item)
-        
-    def draw(self, viewport):
-        point = viewport.translate_point( self._space_rect.center)
-        if self.mouse_is_over():
-            color = (255,255,0)
-        else:
-            color = (255,255,255)
-        if self._radius > 1:
-            pygame.draw.circle( viewport.surface, color, point.int_tuple, 
-                                int(self._radius*viewport.scale), 1)
-                            
-        Container.draw(self, viewport)
-        
-    def mouse_is_over(self):
-        """Returns true if the mouse is over any of the menu items."""
-        for item in self._children:
-            if item.mouse_is_over():
-                return True
-        return False        
-        
-    def translate_point(self, pos):
-        return Vec2d(pos) + self._space_rect.center
-        
-    def translate_rect(self, rect):
-        return rect.move( self._space_rect.center)        
-
-class IconWidget(Widget):
-    def __init__(self, manager, icon, center, layer=LAYER_IFACE):
-        self.icon = icon
-        rect = self.icon.get_rect()
-        rect.center = center
-        Widget.__init__(self, manager, rect, layer)
-        self._selectable = False
-        
-    def draw(self, viewport):
-        viewport.surface.blit(self.icon, self.get_disp_rect(viewport))
-        
-    def handle_event(self, event):
-        """Handles a pygame input event."""
-        return Widget.handle_event(self, event)
-
-class TextContextMenu(Panel):
-    def __init__(self, manager, position, objects):
-        rect = pygame.Rect(position[0],position[1],200,len(objects)*18+14)
-        Panel.__init__(self,manager,rect)
-
-        """Initializer"""
-        self._options = []
-        for i in xrange(len(objects)):
-            w = TextButton(manager, (10, i*18+7), "smallfont", StaticText( objects[i]["text"]))
-            w.set_lclick_action( objects[i]["action"])
-            self.add_child( w)
-        
-        '''    
-        
-        self.icon_size = 1
-        for obj in objects:
-            icon = obj["icon"]
-            self.icon_size = max(self.icon_size, icon.get_width(), icon.get_height())
-            
-        dist = math.sqrt( len(objects)-1)*self.icon_size/2
-        self._radius = dist
-        rect = pygame.Rect(0,0, 2*self.icon_size+self.icon_size, 2*self.icon_size+self.icon_size)
-        rect.center = center
-        
-        Container.__init__(self, manager, rect, LAYER_IFACE)
-        
-        for i in range( len(objects)):
-            angle = (2*i*math.pi)/len(objects)
-            
-            pos = (math.sin(angle)*dist, -math.cos(angle)*dist)
-            item = IconWidget(manager, objects[i]["icon"], pos)
-            item.set_lclick_action( objects[i]["action"])
-            self.add_child( item)
-        
-    def draw(self, viewport):
-        point = viewport.translate_point( self._space_rect.center)
-        if self.mouse_is_over():
-            color = (255,255,0)
-        else:
-            color = (255,255,255)
-        if self._radius > 1:
-            pygame.draw.circle( viewport.surface, color, point.int_tuple, 
-                                int(self._radius*viewport.scale), 1)
-                            
-        Container.draw(self, viewport)
-        
-    def mouse_is_over(self):
-        """Returns true if the mouse is over any of the menu items."""
-        for item in self._children:
-            if item.mouse_is_over():
-                return True
-        return False        '''
-        
+"""Abstract base class for interface actions."""        
 class InterfaceAction(object):
     """Action handler for interface buttons and whatnot."""
     def __init__(self):
@@ -539,6 +163,8 @@ class InterfaceAction(object):
     def do_action(self, source_widget, interface, game):
         raise NotImplementedError("InterfaceAction.do_action")
 
+        
+"""Text generators for text label/button widgets"""
 class TextGenerator(object):
     def __init__(self):
         pass
@@ -593,14 +219,343 @@ class CompositeTextGenerator(TextGenerator):
         
     def get_text(self):
         return self._text            
+    
+class WidgetBehavior(object):
+    """Space positioners"""
+    def _children_update_rect(self):
+        for c in self._children:
+            c.update_rect()
+    
+    def _absolute_update_rect(self):
+        self._space_rect = self._base_rect
+        self._children_update_rect()
+
+    def _relative_update_rect(self):
+        if self._parent is not None:
+            self._space_rect = self._parent.translate_rect(self._base_rect)
+        else:
+            self._space_rect = self._base_rect
+        self._children_update_rect()            
+            
+    """Viewport positioners"""
+    
+    def _absolute_get_disp_rect(self, viewport):
+        self._disp_rect = self._space_rect
+
+    def _relative_get_disp_rect(self, viewport):
+        self._disp_rect = viewport.transform_rect( self._space_rect)           
+    
+    """Updater methods"""
+    def _opaque_update(self, viewport, mousepos):
+        self._mouseover = self._disp_rect.collidepoint( mousepos)
+        #self._children_update(viewport, mousepos)
         
-class TextLabel(Widget):
-    def __init__(self, manager, position, fontname, text_gen, layer=LAYER_IFACE, view_style=VIEW_RELATIVE):
+    def _transparent_update(self, viewport, mousepos):
+        self._mouseover = False
+        #self._children_update(viewport, mousepos)
+        
+    """Event handlers"""
+    def _self_handle_event(self,event):
+        handled = False
+        if self._mouseover:
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if self._lclick_action is not None:
+                        handled = handled or self.manager.do_action( self, self._lclick_action)
+                    if self._selectable:
+                        self.manager.selected_obj = self
+                        handled = True
+                elif event.button == 3:
+                    if self._rclick_action is not None:
+                        handled = handled or self.manager.do_action( self, self._rclick_action)                        
+                
+        return handled
+
+    def _children_handle_event(self, event):
+        for c in self._children:
+            response = c.handle_event(event)
+            if response:
+                return response
+        return False
+
+    def _standard_event_handler(self, event):#children first, then me
+        response = self._children_handle_event(event)
+        if not response:
+            response = self._self_handle_event(event)
+        return response
+        
+    def _greedy_event_handler(self, event):
+        response = self._self_handle_event(event)
+        if not response:
+            response = self._children_handle_event(event)
+        return response
+
+    def _deaf_event_handler(self, event):
+        return self._children_handle_event(event)
+
+    def _super_deaf_event_handler(self, event):
+        return False
+        
+class BaseWidget(WidgetBehavior):
+    
+    def __init__(self, manager, rect, layer=LAYER_BASE):
+        self.manager = manager    
+        self.layer = layer
+        self.selected = False
+        self.finished = False
+        self._mouseover = False
+        self._base_rect = pygame.Rect(rect)
+        self._disp_rect = self._space_rect = self._base_rect
+        self._parent = None
+        self._selectable = True
+        self._lclick_action = None
+        self._rclick_action = None
+        self._children = []
+        self.clamp = False
+        self.update_rect()
+
+    def set_parent(self, p):
+        self._parent = p
+        self.get_disp_rect = types.MethodType(p.get_disp_rect.__func__, self)
+        self.update_rect()
+        
+    def select(self):
+        self.selected = True
+    
+    def deselect(self):
+        self.selected = False
+
+    def handle_event(self, event):
+        """Handles a pygame input event."""
+        
+        handled = False
+        if self.mouse_is_over():
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if self._lclick_action is not None:
+                        handled = handled or self.manager.do_action( self, self._lclick_action)
+                    if self._selectable:
+                        self.manager.selected_obj = self
+                        handled = True
+                elif event.button == 3:
+                    if self._rclick_action is not None:
+                        handled = handled or self.manager.do_action( self, self._rclick_action)                        
+                
+        return handled
+        
+    def move(self, offset):
+        self._base_rect.move_ip( offset)
+        self.update_rect()
+        
+    def move_to(self, pos):
+        self._base_rect.topleft = pos
+        self.update_rect()
+        
+    def center_on(self, pos):
+        self._base_rect.center = pos
+        self.update_rect()
+            
+    def set_lclick_action(self, action):
+        self._lclick_action = action
+        
+    def set_rclick_action(self, action):
+        self._rclick_action = action
+            
+    def draw(self, viewport):
+        self._draw_self(viewport)
+        for c in self._children:
+            c.draw(viewport)
+            
+    def update(self, viewport, mousepos):
+        self.get_disp_rect(viewport)
+        self._update_handler(viewport, mousepos)
+        for c in self._children:
+            mo = c.update(viewport, mousepos)
+            self._mouseover = self._mouseover or mo
+        self._children.sort( key=lambda obj: obj.layer)
+        return self._mouseover
+        
+    def add_child(self, widg):
+        widg.set_parent( self)
+        self._children.append(widg)
+        
+    def remove_child(self, widg):
+        self._children.remove(widg)
+        
+    def translate_point(self, pos):
+        return Vec2d(pos) + self._space_rect.topleft
+        
+    def translate_rect(self, rect):
+        newrect = rect.move( self._space_rect.topleft)
+            
+        if self.clamp:
+            return newrect.clamp( self._space_rect)
+        else:
+            return newrect        
+
+class TestWidget(BaseWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+
+    def _draw_self(self, viewport):
+        screen = viewport.surface
+        if self._mouseover:
+            color = (255,255,100)
+        elif self.selected:
+            color = (255,255,255)
+        else:
+            color = (150,150,150)
+
+        pygame.draw.rect( viewport.surface, (0,0,0), self._disp_rect)
+        pygame.draw.rect( viewport.surface, color, self._disp_rect.inflate((-2,-2)))
+
+class TestPanel(BaseWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._transparent_update
+
+    def _draw_self(self, viewport):
+        if self._mouseover:
+            framecolor = (255,255,255)
+        else:
+            framecolor = (0,0,0)
+        pygame.draw.rect( viewport.surface, framecolor, self._disp_rect)
+        pygame.draw.rect( viewport.surface, (155,155,155), self._disp_rect.inflate(-4,-4))
+        
+class DragBar(BaseWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+
+    def __init__(self, manager, rect):
+        BaseWidget.__init__(self, manager, rect)
+        self._dragging = False
+        self._selectable = False
+    
+    def _draw_self(self, viewport):
+        pygame.draw.rect( viewport.surface, (100,100,200), self._disp_rect)
+        
+    def handle_event(self, event):
+        if self._mouseover and event.type == MOUSEBUTTONDOWN and event.button == 1:
+            self._dragging = True
+            self.manager.add_mousemotion_listener( self)
+            return True
+        elif self._mouseover and event.type == MOUSEBUTTONUP and event.button == 1:
+            self._dragging = False
+            self.manager.remove_mousemotion_listener( self)
+            return True
+        elif event.type == MOUSEMOTION:
+            if self._parent is not None:
+                self._parent.move( event.rel_motion)
+                
+class DragPanel(TestPanel):
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
+
+    def __init__(self, manager, rect, layer=LAYER_BASE):
+        TestPanel.__init__(self, manager, rect, layer)
+        dragrect = pygame.Rect(rect).inflate( (-4,0))
+        dragrect.topleft = (2,2)
+        dragrect.h = 20
+        self.add_child( DragBar(manager, dragrect))
+        
+class IconWidget(BaseWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+
+    def __init__(self, manager, icon, center, layer=LAYER_IFACE):
+        self.icon = icon
+        rect = self.icon.get_rect()
+        rect.center = center
+        BaseWidget.__init__(self, manager, rect, layer)
+        self._selectable = False
+        
+    def _draw_self(self, viewport):
+        viewport.surface.blit(self.icon, self._disp_rect)
+        
+class VPWidget(TestWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+
+    def __init__(self, manager, center, layer=LAYER_IFACE):
+        rect = pygame.Rect(0,0,20,20)
+        rect.center = center
+        TestWidget.__init__(self, manager, rect, layer)
+        self._selectable = False
+        
+class RadialContextMenu(BaseWidget):
+    """Base class for generic context menus, with options deployed 
+    in a circular model."""
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._transparent_update
+    
+    def __init__(self, manager, center, objects):
+        """Initializer. 
+        
+        Args:
+            manager: InterfaceManager object
+            center: The center of the menu in game coordinates
+            objects: A list of dictionaries containing information about the 
+                menu options.
+        """
+        self.icon_size = 1
+        for obj in objects:
+            icon = obj["icon"]
+            self.icon_size = max(self.icon_size, icon.get_width(), icon.get_height())
+            
+        dist = math.sqrt( len(objects)-1)*self.icon_size/2
+        self._radius = dist
+        rect = pygame.Rect(0,0, 2*self.icon_size+self.icon_size, 2*self.icon_size+self.icon_size)
+        rect.center = center
+        
+        BaseWidget.__init__(self, manager, rect, LAYER_IFACE)
+        
+        for i in range( len(objects)):
+            angle = (2*i*math.pi)/len(objects)
+            
+            pos = (math.sin(angle)*dist, -math.cos(angle)*dist)
+            item = IconWidget(manager, objects[i]["icon"], pos)
+            item.set_lclick_action( objects[i]["action"])
+            self.add_child( item)
+        
+    def _draw_self(self, viewport):
+        point = viewport.translate_point( self._space_rect.center)
+        if self._mouseover:
+            color = (255,255,0)
+        else:
+            color = (255,255,255)
+        if self._radius > 1:
+            pygame.draw.circle( viewport.surface, color, point.int_tuple, 
+                                int(self._radius*viewport.scale), 3)
+        
+    def translate_point(self, pos):
+        return Vec2d(pos) + self._space_rect.center
+        
+    def translate_rect(self, rect):
+        return rect.move( self._space_rect.center)
+        
+class TextLabel(BaseWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._transparent_update
+
+    def __init__(self, manager, position, fontname, text_gen, layer=LAYER_IFACE):
         self._textgen = text_gen
         self._origin = position
         self._font = manager.fonts[fontname]
         self._regenerate()
-        Widget.__init__(self, manager, self._base_rect, layer, view_style)
+        BaseWidget.__init__(self, manager, self._base_rect, layer)
+        self._selectable = False        
         
     def _regenerate(self):
         text = self._textgen.get_text()
@@ -608,30 +563,68 @@ class TextLabel(Widget):
         self._base_rect = self._img.get_rect()
         self._base_rect.topleft = self._origin
         
-    def draw(self, viewport):
+    def _draw_self(self, viewport):
         if self._textgen.text_changed():
             self._regenerate()
-        disp_rect = self.get_disp_rect(viewport)
-        viewport.surface.blit( self._img, disp_rect)
+        viewport.surface.blit( self._img, self._disp_rect)
 
 class TextButton(TextLabel):
-    def __init__(self, manager, position, fontname, text_gen, action=None, layer=LAYER_IFACE, view_style=VIEW_RELATIVE):
-        self._textgen = text_gen
-        self._origin = position
-        self._font = manager.fonts[fontname]
-        self._regenerate()
-        Widget.__init__(self, manager, self._base_rect, layer, view_style)
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+
+    def __init__(self, manager, position, fontname, text_gen, action=None, layer=LAYER_IFACE):
+        TextLabel.__init__(self, manager, position, fontname, text_gen, layer)
         self.set_lclick_action(action)        
         
     def _regenerate(self):
         text = self._textgen.get_text()
         self._mainimg = self._font.render( text, True, (0,0,0))
         self._altimg = self._font.render( text, True, (255,255,0))
+        self._img = self._mainimg
         self._base_rect = self._mainimg.get_rect()
         self._base_rect.topleft = self._origin
 
-    def draw(self, viewport):
-        self._img = self._altimg if self.mouse_is_over() else self._mainimg
-        TextLabel.draw(self, viewport)
+    def _draw_self(self, viewport):
+        self._img = self._altimg if self._mouseover else self._mainimg
+        TextLabel._draw_self(self, viewport)
         
+class GameObjWidget(BaseWidget):
+    """Base class for all interface objects."""
+    
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+    
+    def __init__(self, manager, obj, layer=LAYER_BASE):
+        BaseWidget.__init__(self,manager,obj.rect,layer)
+        self._game_object = obj
+        self._selectable = True
 
+    def _update_handler(self, viewport, mousepos):
+        if self._base_rect.center != self._game_object.rect.center:
+            self._base_rect.center = self._game_object.rect.center
+            self.update_rect()
+        BaseWidget._opaque_update(self, viewport, mousepos)
+        
+    def _draw_self(self, viewport):
+        if self.selected:
+            color = (255,255,255)
+        else:
+            color = (100,100,100)
+        pygame.draw.rect(viewport.surface, color, self._disp_rect)
+        
+    def select(self):
+        BaseWidget.select(self)
+        self._game_object.select()
+        
+    def deselect(self):
+        BaseWidget.deselect(self)
+        self._game_object.select()
+        
+    def get_game_object(self):
+        return self._game_object
+        
+    game_object = property( get_game_object)    
