@@ -248,11 +248,9 @@ class WidgetBehavior(object):
     """Updater methods"""
     def _opaque_update(self, viewport, mousepos):
         self._mouseover = self._disp_rect.collidepoint( mousepos)
-        #self._children_update(viewport, mousepos)
         
     def _transparent_update(self, viewport, mousepos):
         self._mouseover = False
-        #self._children_update(viewport, mousepos)
         
     """Event handlers"""
     def _self_handle_event(self,event):
@@ -316,7 +314,6 @@ class BaseWidget(WidgetBehavior):
 
     def set_parent(self, p):
         self._parent = p
-        self.get_disp_rect = types.MethodType(p.get_disp_rect.__func__, self)
         self.update_rect()
         
     def select(self):
@@ -396,7 +393,7 @@ class BaseWidget(WidgetBehavior):
 class TestWidget(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._relative_get_disp_rect
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._opaque_update
 
     def _draw_self(self, viewport):
@@ -414,7 +411,7 @@ class TestWidget(BaseWidget):
 class TestPanel(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._relative_get_disp_rect
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._transparent_update
 
     def _draw_self(self, viewport):
@@ -428,7 +425,7 @@ class TestPanel(BaseWidget):
 class DragBar(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._relative_get_disp_rect
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._opaque_update
 
     def __init__(self, manager, rect):
@@ -465,7 +462,7 @@ class DragPanel(TestPanel):
 class IconWidget(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._relative_get_disp_rect
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._opaque_update
 
     def __init__(self, manager, icon, center, layer=LAYER_IFACE):
@@ -481,7 +478,7 @@ class IconWidget(BaseWidget):
 class VPWidget(TestWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._relative_get_disp_rect
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._opaque_update
 
     def __init__(self, manager, center, layer=LAYER_IFACE):
@@ -495,7 +492,7 @@ class RadialContextMenu(BaseWidget):
     in a circular model."""
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._relative_get_disp_rect
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._transparent_update
     
     def __init__(self, manager, center, objects):
@@ -546,7 +543,7 @@ class RadialContextMenu(BaseWidget):
 class TextLabel(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._relative_get_disp_rect
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._transparent_update
 
     def __init__(self, manager, position, fontname, text_gen, layer=LAYER_IFACE):
@@ -571,7 +568,7 @@ class TextLabel(BaseWidget):
 class TextButton(TextLabel):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._relative_get_disp_rect
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._opaque_update
 
     def __init__(self, manager, position, fontname, text_gen, action=None, layer=LAYER_IFACE):
@@ -592,7 +589,6 @@ class TextButton(TextLabel):
         
 class GameObjWidget(BaseWidget):
     """Base class for all interface objects."""
-    
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
     get_disp_rect = BaseWidget._relative_get_disp_rect

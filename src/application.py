@@ -91,18 +91,18 @@ class Application(object):
             
         #if the stack activity isn't empty
         if top is not None:
-        
-            #force the top activity to resume and do an update
+
             top.resume()            
-            while self._time_stored > self._logic_frame_time:
-                self._time_stored -= self._logic_frame_time
-                top.update()
-                
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return False
                 else:
                     top.handle_event( event)
+        
+            #force the top activity to resume and do an update
+            while self._time_stored > self._logic_frame_time:
+                self._time_stored -= self._logic_frame_time
+                top.update()
 
             return True
             

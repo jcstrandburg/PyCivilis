@@ -262,18 +262,6 @@ class ViewportActivity( application.Activity):
         self.resources = resourcemanager.ResourceManager()
         self.resources.load_set("res/resources.txt")
 
-        '''img = pygame.transform.smoothscale(self.resources.get("ico1"), (20,20))
-        self.icon = interface.IconWidget(self.iface, img, (0,0))
-        self.iface.add_child( self.icon)
-        self.iface.add_child(interface.IconWidget(self.iface, img, (40,-40)))
-        self.iface.add_child(interface.IconWidget(self.iface, img, (40,0)))
-        self.iface.add_child(interface.IconWidget(self.iface, img, (40,40)))
-        self.iface.add_child(interface.IconWidget(self.iface, img, (-40,-40)))
-        elf.iface.add_child(interface.IconWidget(self.iface, img, (-40,0)))
-        self.iface.add_child(interface.IconWidget(self.iface, img, (-40,40)))
-        self.iface.add_child(interface.IconWidget(self.iface, img, (0,-40)))
-        self.iface.add_child(interface.IconWidget(self.iface, img, (0,40)))'''
-
         self.iface.add_child(interface.VPWidget(self.iface, (-40, -40)))
         self.iface.add_child(interface.VPWidget(self.iface, (-40, 0)))
         self.iface.add_child(interface.VPWidget(self.iface, (-40, 40)))
