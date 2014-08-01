@@ -132,23 +132,8 @@ class WidgetActivity( application.Activity):
             tag = "ico" + str(i)
             self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
 
-        self.container = interface.TestPanel( self.iface, (0,0,300,200))
-
-        self.test1 = interface.TestWidget( self.iface, (50,50,100,30))
-        self.test2 = interface.TestWidget( self.iface, (50,100,100,30))
-        self.test3 = interface.TestWidget( self.iface, (50,150,100,30))
-        self.dragbar = interface.DragBar( self.iface, (2,2,296,20))
-        
-        self.container.add_child( self.test1)
-        self.container.add_child( self.test2)
-        self.container.add_child( self.test3)
-        self.container.add_child( self.dragbar)
-        
-        self.iface.add_child( self.container)        
-
         self.container2 = interface.DragPanel( self.iface, 
-                            (350,100,375,200))
-        
+                            (400,10,375,200))
         self.testa = interface.TestWidget( self.iface, (25,50,100,30))
         self.testb = interface.TestWidget( self.iface, (25,100,100,30))
         self.testc = interface.TestWidget( self.iface, (25,150,100,30))
@@ -172,12 +157,34 @@ class WidgetActivity( application.Activity):
         
         self.iface.add_child( self.container2)
         
-        testobj = actor.Actor(self.game, (50, 400))
-        testobj.position = (100,400)
+        testobj = actor.Actor(self.game, (-100, 0))
+        testobj.target_orders = testobj.target_orders.union(['a','b','c'])        
+        testobj.ability_orders = testobj.ability_orders.union(['c','d'])
         self.game.add_game_object(testobj)        
         testwidg = interface.GameObjWidget( self.iface, testobj)
-        self.iface.add_child( testwidg)       
+        self.iface.add_child( testwidg)
 
+        testobj = actor.Actor(self.game, (100, 0))
+        testobj.target_orders = testobj.target_orders.union(['a','b','d'])
+        testobj.ability_orders = testobj.ability_orders.union(['a','b','d'])
+        self.game.add_game_object(testobj)        
+        testwidg = interface.GameObjWidget( self.iface, testobj)
+        self.iface.add_child( testwidg)        
+
+        testobj = actor.Actor(self.game, (-100, 200))
+        testobj.target_orders = testobj.target_orders.union(['a','c','d'])
+        testobj.ability_orders = testobj.ability_orders.union(['b','d'])
+        self.game.add_game_object(testobj)        
+        testwidg = interface.GameObjWidget( self.iface, testobj)
+        self.iface.add_child( testwidg)   
+        
+        testobj = actor.Actor(self.game, (100, 200))
+        testobj.target_orders = testobj.target_orders.union(['c','d'])
+        testobj.ability_orders = testobj.ability_orders.union(['a','b','d'])
+        self.game.add_game_object(testobj)        
+        testwidg = interface.GameObjWidget( self.iface, testobj)
+        self.iface.add_child( testwidg)           
+        
 
     def update(self):
         self.ticker += 1
@@ -228,18 +235,19 @@ class WidgetActivity( application.Activity):
             elif event.button == 5:
                 self.vp.zoom_out()
             elif event.button == 3:
-                '''options = []
-                for x in range(self.options):
-                    options.append({ "icon": self.icons[x],
-                                     "action": TestContextAction("Action: "+str(x))})
+                so = self.game.selected_obj
+                if so is not None and hasattr(so, "set_order"):
+                    so.set_order( actor.MoveOrder(so,self.game,event.gamepos))
+                else:
+                    options = []
+                    for x in range(self.options):
+                        options.append({ "icon": self.icons[x],
+                                         "text": "Option "+str(x),
+                                         "action": TestContextAction("Action: "+str(x))})
 
-                cm = interface.RadialContextMenu(self.iface, event.pos, options)
-                self.iface.set_context_menu(cm)'''
-                
-                so = self.iface.selected_obj
-                if so is not None and hasattr(so, 'game_object'):
-                    go = so.game_object
-                    go.set_order( actor.MoveOrder(go,self.game,event.gamepos))
+                    #cm = interface.RadialContextMenu(self.iface, event.pos, options)
+                    cm = interface.TextContextMenu(self.iface, event.pos, options)
+                    self.iface.set_context_menu(cm)                
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:

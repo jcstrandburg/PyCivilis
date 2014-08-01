@@ -11,6 +11,7 @@ class Actor(game.GameObject):
         self.move_speed = 5.0
         self._task = None
         self._order = None
+        self.selectable = True
 
     def update(self):   
         if self._task is None:
@@ -68,7 +69,15 @@ class SimpleMoveTask(Task):
         else:
             actor.position = self._dest
             self._completed = True
-            
+
+class OrderBuilders(object):
+    def __init__(self, selected, target, interface):
+        self.selected = selected
+        self.target = target
+        print 'order builder created'
+        
+    def build_context_menu(self, orders):
+        pass
 
 class Order(object):
     """Base class for all order classes. Implements a sort of state

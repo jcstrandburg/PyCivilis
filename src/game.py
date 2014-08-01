@@ -12,6 +12,7 @@ class Game(object):
     def __init__(self):
         self._next_id = 0
         self._objects = []
+        self.selected_obj = None
             
     def update(self):
         for o in self._objects:
@@ -35,7 +36,14 @@ class Game(object):
     def new_object_id(self):
         self._next_id += 1
         return self._next_id
+
+    def select(self, object):
+        self.selected_obj = object
         
+    def deselect(self, object):
+        if self.selected_obj == object:
+            self.selected_obj = None
+            
     
 class GameObject(object):
     """Base class for all objects that exist within the game simulation."""
@@ -50,6 +58,9 @@ class GameObject(object):
         self._selected = False
         self.id = game.new_object_id()
         self._render_state = { "selected": self._selected}
+        self.selectable = False
+        self.target_orders = set([])
+        self.ability_orders = set([])
 
     def _set_pos(self, pos):
         self.rect.center = self._position = vector.Vec2d(pos)
@@ -59,16 +70,14 @@ class GameObject(object):
         
     position = property( _get_pos, _set_pos, 
                 doc="""Center position of the object""")
-
-    def selectable(self):
-        """returns whether the object is selectable"""
-        return False
                 
     def select(self):
-        pass
+        self.game.select( self)
+        self._selected = True
         
     def deselect(self):
-        pass
+        self.game.deselect( self)
+        self._selected = False
 
     def _get_selected(self):
         return self._selected

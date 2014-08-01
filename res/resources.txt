@@ -8,6 +8,10 @@ image ico4 messenger.png
 image ico5 music.png
 image ico6 settings.png
 image ico7 settings2.png
+image icon_a icon_a.png
+image icon_b icon_b.png
+image icon_c icon_c.png
+image icon_d icon_d.png
 
 image person person.png
 image map map.png
