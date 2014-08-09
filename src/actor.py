@@ -37,7 +37,6 @@ class Actor(game.GameObject):
         
     def deselect(self):
         game.GameObject.deselect(self)
-        
 
 class Task(object):
     """Base class for all task classes."""
@@ -50,7 +49,6 @@ class Task(object):
         
     def is_completed(self):
         return self._completed
-        
 
 class SimpleMoveTask(Task):
     """Task for simple straight line movement"""
@@ -70,15 +68,6 @@ class SimpleMoveTask(Task):
             actor.position = self._dest
             self._completed = True
 
-class OrderBuilders(object):
-    def __init__(self, selected, target, interface):
-        self.selected = selected
-        self.target = target
-        print 'order builder created'
-        
-    def build_context_menu(self, orders):
-        pass
-
 class Order(object):
     """Base class for all order classes. Implements a sort of state
     machine functionality for transitioning and cycling between tasks."""
@@ -92,8 +81,7 @@ class Order(object):
         if self._task_state is not None:
             return self._task_state()
         else:
-            return None
-            
+            return None            
 
 class MoveOrder(Order):
     """Class that handles move orders, including wandering functionality
@@ -112,3 +100,14 @@ class MoveOrder(Order):
         self.task_state = self._state_wander
         dest = self._dest + (random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0))
         return SimpleMoveTask(dest, 0.15)
+
+class OrderBuilder(object):
+    def __init__(self, selected, target):
+        self.selected = selected
+        self.target = target
+
+    def get_options(self):
+        return self.target.target_orders.intersection( self.selected.ability_orders)    
+        
+    def do_order(self, tag):
+        print tag

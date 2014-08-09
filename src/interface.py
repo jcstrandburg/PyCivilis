@@ -9,6 +9,7 @@ import types
 import vector
 import viewport as viewport_mod #avoiding conflicts with variable names
 import game
+import actor
 
 #layers
 LAYER_BASE          = 0
@@ -18,11 +19,6 @@ LAYER_GAME_FG       = 30
 LAYER_IFACE         = 40
 LAYER_IFACE_LOWER   = 40
 LAYER_IFACE_UPPER   = 50
-
-#viewport transform modes
-VIEW_FIXED      = 1001
-VIEW_RELATIVE   = 1002
-
 
 class InterfaceManager( object):
     """Class that manages and controls a generic interface system."""
@@ -118,17 +114,19 @@ class InterfaceManager( object):
                 if m.handle_event(event):
                     handled = True
                     break
-                    
-            if event.type == MOUSEBUTTONDOWN and event.button == 1:
-                self.cancel_context_menu()
-                if not handled:
-                    self.selected_obj = None
         elif event.type == MOUSEMOTION:
             for widget in self._motion_listeners:
                 handled = handled or widget.handle_event(event)
                 if handled:
                     return handled
-                
+
+        if not handled:
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button in (1,3):
+                    self.cancel_context_menu()
+                if event.button == 1:
+                    self.selected_obj = None
+                    
         return handled        
         
     def _set_selected_obj(self, sel):
@@ -156,9 +154,10 @@ class InterfaceManager( object):
         self._motion_listeners.remove(widget)
 
         
-"""Abstract base class for interface actions."""        
 class InterfaceAction(object):
-    """Action handler for interface buttons and whatnot."""
+    """Abstract base class for interface actions. Serves as an 
+    action handler for interface buttons and whatnot."""
+    
     def __init__(self):
         pass
         
@@ -166,8 +165,9 @@ class InterfaceAction(object):
         raise NotImplementedError("InterfaceAction.do_action")
 
         
-"""Text generators for text label/button widgets"""
 class TextGenerator(object):
+    """Text generators for text label/button widgets"""
+    
     def __init__(self):
         pass
 
@@ -223,6 +223,9 @@ class CompositeTextGenerator(TextGenerator):
         return self._text            
     
 class WidgetBehavior(object):
+    """Container class for all base widget behaviors."""
+
+    
     """Space positioners"""
     def _children_update_rect(self):
         for c in self._children:
@@ -239,13 +242,17 @@ class WidgetBehavior(object):
             self._space_rect = self._base_rect
         self._children_update_rect()            
             
-    """Viewport positioners"""
-    
+    """Viewport positioners"""    
     def _absolute_get_disp_rect(self, viewport):
         return self._space_rect
 
     def _relative_get_disp_rect(self, viewport):
         return viewport.transform_rect( self._space_rect)           
+        
+    def _fixedsize_get_disp_rect(self, viewport):
+        rect = self._space_rect.copy()
+        rect.center = viewport.translate_point( rect.center)
+        return rect
     
     """Updater methods"""
     def _opaque_update(self, viewport, mousepos):
@@ -397,6 +404,31 @@ class BaseWidget(WidgetBehavior):
         else:
             return newrect        
 
+        
+class MapWidget(BaseWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+
+    def __init__(self, manager, game):
+        BaseWidget.__init__(self, manager, (-360,-360,738,738), LAYER_BASE)
+        self._selectable = False
+        self.img = manager.controller.resources.get("ground")
+        self.game = game
+
+    def _draw_self(self, viewport, disp_rect):
+        img = viewport.transform.scale(self.img, viewport.scale)
+        viewport.surface.blit( img, disp_rect)
+        
+    def _self_handle_event(self, event):
+        if event.type == MOUSEBUTTONDOWN and event.button == 3:
+            sel = self.game.selected_obj
+            if sel is not None and hasattr(sel, "set_order"):
+                sel.set_order( actor.MoveOrder(sel,self.game,event.gamepos))            
+                return True
+        return BaseWidget._self_handle_event(self, event)
+            
 class TestWidget(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
@@ -449,7 +481,7 @@ class DragBar(BaseWidget):
     def _draw_self(self, viewport, rect):
         pygame.draw.rect( viewport.surface, (100,100,200), rect)
         
-    def handle_event(self, event):
+    def _self_handle_event(self, event):
         if self._mouseover and event.type == MOUSEBUTTONDOWN and event.button == 1:
             self._dragging = True
             self.manager.add_mousemotion_listener( self)
@@ -461,6 +493,9 @@ class DragBar(BaseWidget):
         elif event.type == MOUSEMOTION:
             if self._parent is not None:
                 self._parent.move( event.abs_motion)
+                return True
+        return BaseWidget._self_handle_event(self, event)
+        
                 
 class DragPanel(TestPanel):
     get_disp_rect = BaseWidget._absolute_get_disp_rect
@@ -488,17 +523,52 @@ class IconWidget(BaseWidget):
     def _draw_self(self, viewport, rect):
         viewport.surface.blit(self.icon, rect)
         
-class VPWidget(TestWidget):
+class TextLabel(BaseWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._absolute_get_disp_rect
+    _update_handler = BaseWidget._transparent_update
+
+    def __init__(self, manager, position, fontname, text_gen, layer=LAYER_IFACE):
+        self._textgen = text_gen
+        self._origin = position
+        self._font = manager.fonts[fontname]
+        self._regenerate()
+        BaseWidget.__init__(self, manager, self._base_rect, layer)
+        self._selectable = False        
+        
+    def _regenerate(self):
+        text = self._textgen.get_text()
+        self._img = self._font.render( text, True, (0,0,0))
+        self._base_rect = self._img.get_rect()
+        self._base_rect.topleft = self._origin
+        
+    def _draw_self(self, viewport, rect):
+        if self._textgen.text_changed():
+            self._regenerate()
+        viewport.surface.blit( self._img, rect)
+
+class TextButton(TextLabel):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
     get_disp_rect = BaseWidget._absolute_get_disp_rect
     _update_handler = BaseWidget._opaque_update
 
-    def __init__(self, manager, center, layer=LAYER_IFACE):
-        rect = pygame.Rect(0,0,20,20)
-        rect.center = center
-        TestWidget.__init__(self, manager, rect, layer)
-        self._selectable = False
+    def __init__(self, manager, position, fontname, text_gen, action=None, layer=LAYER_IFACE):
+        TextLabel.__init__(self, manager, position, fontname, text_gen, layer)
+        self.set_lclick_action(action)        
+        
+    def _regenerate(self):
+        text = self._textgen.get_text()
+        self._mainimg = self._font.render( text, True, (0,0,0))
+        self._altimg = self._font.render( text, True, (255,255,0))
+        self._img = self._mainimg
+        self._base_rect = self._mainimg.get_rect()
+        self._base_rect.topleft = self._origin
+
+    def _draw_self(self, viewport, rect):
+        self._img = self._altimg if self._mouseover else self._mainimg
+        TextLabel._draw_self(self, viewport, rect)
         
 class RadialContextMenu(BaseWidget):
     """Base class for generic context menus, with options deployed 
@@ -577,7 +647,7 @@ class TextContextMenu(BaseWidget):
         items = []
         width = 0
         for i in range( len(objects)):
-            tb = TextButton(manager, (3,3+i*itemheight), "smallfont", 
+            tb = TextContextItem(manager, (3,3+i*itemheight), "smallfont", 
                                 StaticText( objects[i]["text"]), objects[i]["action"])
             width = max(width, tb._base_rect.width)
             items.append( tb)
@@ -593,52 +663,8 @@ class TextContextMenu(BaseWidget):
     def _draw_self(self, viewport, rect):
         pygame.draw.rect(viewport.surface, (150,150,150), rect)
         
-class TextLabel(BaseWidget):
-    update_rect = BaseWidget._relative_update_rect
-    handle_event = BaseWidget._standard_event_handler
+class TextContextItem(TextButton):
     get_disp_rect = BaseWidget._absolute_get_disp_rect
-    _update_handler = BaseWidget._transparent_update
-
-    def __init__(self, manager, position, fontname, text_gen, layer=LAYER_IFACE):
-        self._textgen = text_gen
-        self._origin = position
-        self._font = manager.fonts[fontname]
-        self._regenerate()
-        BaseWidget.__init__(self, manager, self._base_rect, layer)
-        self._selectable = False        
-        
-    def _regenerate(self):
-        text = self._textgen.get_text()
-        self._img = self._font.render( text, True, (0,0,0))
-        self._base_rect = self._img.get_rect()
-        self._base_rect.topleft = self._origin
-        
-    def _draw_self(self, viewport, rect):
-        if self._textgen.text_changed():
-            self._regenerate()
-        viewport.surface.blit( self._img, rect)
-
-class TextButton(TextLabel):
-    update_rect = BaseWidget._relative_update_rect
-    handle_event = BaseWidget._standard_event_handler
-    get_disp_rect = BaseWidget._absolute_get_disp_rect
-    _update_handler = BaseWidget._opaque_update
-
-    def __init__(self, manager, position, fontname, text_gen, action=None, layer=LAYER_IFACE):
-        TextLabel.__init__(self, manager, position, fontname, text_gen, layer)
-        self.set_lclick_action(action)        
-        
-    def _regenerate(self):
-        text = self._textgen.get_text()
-        self._mainimg = self._font.render( text, True, (0,0,0))
-        self._altimg = self._font.render( text, True, (255,255,0))
-        self._img = self._mainimg
-        self._base_rect = self._mainimg.get_rect()
-        self._base_rect.topleft = self._origin
-
-    def _draw_self(self, viewport, rect):
-        self._img = self._altimg if self._mouseover else self._mainimg
-        TextLabel._draw_self(self, viewport, rect)
         
 class GameObjWidget(BaseWidget):
     """Base class for all interface objects."""
@@ -679,34 +705,28 @@ class GameObjWidget(BaseWidget):
     def _self_handle_event(self, event):
         if event.type == MOUSEBUTTONDOWN and event.button == 3:
             game = self.manager.controller.game
-            if game.selected_obj is not None:
-                overlap = self._game_object.target_orders.intersection( game.selected_obj.ability_orders)
-                builder = OrderMenuBuilder(self.game_object, game.selected_obj, overlap)
-                print self.layer
+            if game.selected_obj is not None and game.selected_obj != self.game_object:
+                #overlap = self._game_object.target_orders.intersection( game.selected_obj.ability_orders)
+                builder = OrderMenuBuilder(self.game_object, game.selected_obj)#, overlap)
                 builder.make_menu(event, self.manager)
-            return True
+                return True
         return BaseWidget._self_handle_event(self, event)
         
     game_object = property( get_game_object)
     
 class OrderMenuBuilder(object):
-    def __init__(self, target, selected, options):
-        self.target = target
-        self.selected = selected
-        self.options = options
+    def __init__(self, target, selected):
+        self.builder = actor.OrderBuilder(selected, target)
+        self.options = self.builder.get_options()
         
     def make_menu(self, event, interface):
         items = []
         for o in self.options:
-            action = OrderBuilderAction(self, o)
+            action = OrderBuilderAction(self.builder, o)
             item = {"text": o, "action": action}
             items.append( item)
         cm = TextContextMenu(interface, event.pos, items)
-        print cm.layer
         interface.set_context_menu(cm)
-        
-    def do_order(self, tag):
-        print tag
         
 class OrderBuilderAction(InterfaceAction):
     def __init__(self, builder, ordertag):

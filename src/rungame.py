@@ -96,19 +96,6 @@ class MapMoveAction(interface.InterfaceAction):
         if hasattr(obj, "game_object"):
             obj.game_object.set_order(actor.MoveOrder(obj.game_object, game, self._coords))
         
-'''class TestMapWidget(interface.Widget):
-    def __init__(self, manager):
-        interface.Widget.__init__(self, manager, (0,0,800,600), interface.LAYER_BASE, interface.VIEW_FIXED)
-        self._selectable = False
-
-    def draw(self, viewport):
-        pygame.draw.rect(viewport.surface, (150,50,150), self.get_disp_rect(viewport))
-        
-    def handle_event(self, event):
-        if event.type == MOUSEBUTTONDOWN and event.button == 3:
-            self.manager.do_action(self, MapMoveAction(event.gamepos))
-            return True'''
-        
 class WidgetActivity( application.Activity):
     """Test activity for debugging."""
     
@@ -143,6 +130,9 @@ class WidgetActivity( application.Activity):
         optionstext = interface.LambdaTextGenerator( lambda: self.options)
         inctext = IncrementText(0)
         comptext = interface.CompositeTextGenerator((basetext, inctext))
+
+        self.map = interface.MapWidget(self.iface, self.game)
+        self.iface.add_child(self.map)
         
         self.text1 = interface.TextLabel( self.iface, (135,50), "medfont", comptext)
         self.text2 = interface.TextButton( self.iface, (135,100), "medfont", text, TestContextAction("Clicky"))
@@ -154,8 +144,7 @@ class WidgetActivity( application.Activity):
         self.container2.add_child( self.text1)
         self.container2.add_child( self.text2)
         self.container2.add_child( self.text3)
-        
-        self.iface.add_child( self.container2)
+        #self.iface.add_child( self.container2)
         
         testobj = actor.Actor(self.game, (-100, 0))
         testobj.target_orders = testobj.target_orders.union(['a','b','c'])        
@@ -183,21 +172,16 @@ class WidgetActivity( application.Activity):
         testobj.ability_orders = testobj.ability_orders.union(['a','b','d'])
         self.game.add_game_object(testobj)        
         testwidg = interface.GameObjWidget( self.iface, testobj)
-        self.iface.add_child( testwidg)           
+        self.iface.add_child( testwidg)
         
 
     def update(self):
         self.ticker += 1
-    
         application.Activity.update(self)
         self.iface.update( self.vp)
         self.game.update()        
-        
-        pos = (0, 150+75*math.sin(self.ticker/40.0))
-        #self.container.move_to( pos)
-        
+
         pressed = pygame.key.get_pressed()
-            
         if pressed[K_d]:
             self.vp.pan( (2,0))
         elif pressed[K_a]:
@@ -235,19 +219,15 @@ class WidgetActivity( application.Activity):
             elif event.button == 5:
                 self.vp.zoom_out()
             elif event.button == 3:
-                so = self.game.selected_obj
-                if so is not None and hasattr(so, "set_order"):
-                    so.set_order( actor.MoveOrder(so,self.game,event.gamepos))
-                else:
-                    options = []
-                    for x in range(self.options):
-                        options.append({ "icon": self.icons[x],
-                                         "text": "Option "+str(x),
-                                         "action": TestContextAction("Action: "+str(x))})
+                options = []
+                for x in range(self.options):
+                    options.append({ "icon": self.icons[x],
+                                     "text": "Option "+str(x),
+                                     "action": TestContextAction("Action: "+str(x))})
 
-                    #cm = interface.RadialContextMenu(self.iface, event.pos, options)
-                    cm = interface.TextContextMenu(self.iface, event.pos, options)
-                    self.iface.set_context_menu(cm)                
+                #cm = interface.RadialContextMenu(self.iface, event.pos, options)
+                cm = interface.TextContextMenu(self.iface, event.pos, options)
+                self.iface.set_context_menu(cm)                
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:

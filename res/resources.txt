@@ -14,4 +14,8 @@ image icon_c icon_c.png
 image icon_d icon_d.png
 
 image person person.png
-image map map.png
+image ground ground.png
+image animal snorgle.png
+image tree tree.png
+image rocks rocks.png
+image hut hut.png
