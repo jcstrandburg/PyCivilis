@@ -21,7 +21,6 @@ LAYER_IFACE_LOWER   = 40
 LAYER_IFACE_UPPER   = 50
 
 
-
 class InterfaceManager( object):
     """Class that manages and controls a generic interface system."""
 

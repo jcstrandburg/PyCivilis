@@ -53,7 +53,7 @@ class Task(object):
     def is_completed(self):
         return self._completed
         
-    def cancel(self):   
+    def cancel(self, actor):   
         print "Task.cancel not implemented" 
 
 class SimpleMoveTask(Task):
@@ -74,7 +74,7 @@ class SimpleMoveTask(Task):
             actor.position = self._dest
             self._completed = True
             
-    def cancel(self):
+    def cancel(self, actor):
         pass
             
 class WanderTask(SimpleMoveTask):
@@ -100,9 +100,10 @@ class ForageTask(Task):
             actor.target_workspace.release()
             self._completed = True
             
-    def cancel(self):
+    def cancel(self, actor):
         if actor.target_workspace is not None:
             actor.target_workspace.release()
+            actor.carrying = None
         else:
             print "I'm not sure how we get here cap'n"
             
@@ -129,7 +130,7 @@ class ReserveWorkspaceTask(Task):
         else:
             pass
         
-    def cancel(self):
+    def cancel(self, actor):
         self._reservation.release()
         
 class Order(object):
@@ -151,7 +152,7 @@ class Order(object):
             
     def cancel(self):
         if self._task is not None:
-            self._task.cancel()
+            self._task.cancel( self.actor)
 
             
 class MoveOrder(Order):
@@ -172,11 +173,12 @@ class MoveOrder(Order):
         return WanderTask(self._dest)
         
     def cancel(self):
-        pass
+        Order.cancel(self)
         
 class ForageOrder(Order): 
 
     def __init__(self, actor, game, target):
+        Order.__init__(self, actor, game)
         self._task_state = self._state_seek_forage_location
         self._actor = actor
         self._target = target
@@ -220,11 +222,6 @@ class ForageOrder(Order):
         self._task_state = self._state_seek_forage_location
         print "dump storage"
         return DumpTask()
-
-    def cancel(self):
-        Order.cancel(self)
-        if self._actor.target_workspace is not None:
-            self._actor.target_workspace.release()        
         
 class OrderBuilder(object):
     def __init__(self, selected, target):
