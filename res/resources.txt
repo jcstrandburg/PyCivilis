@@ -17,5 +17,7 @@ image person person.png
 image ground ground.png
 image animal snorgle.png
 image tree tree.png
-image rocks rocks.png
+image rock rocks.png
 image hut hut.png
+image snorgle snorgle.png
+image workspace campfire.png

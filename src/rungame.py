@@ -24,78 +24,16 @@ class CivilisApp( application.Application):
         self._object_id += 1
         return self._object_id-1
 
-class TestContextAction2(interface.InterfaceAction):
-    def __init__(self):
-        interface.InterfaceAction.__init__(self)
-        
-    def do_action(self, interface, game):
-        sobj = interface.selected_obj
-        if sobj is not None and sobj.game_object is not None:
-            sobj.game_object.rect.move_ip((-100,-100))
-        
-"""        
-class TestRenderer(interface.BaseRenderer):
-    def __init__(self):
-        size = (50,50)
+class ActorWidget( interface.SpriteWidget):
     
-        self.img1 = pygame.Surface( size)
-        self.img1.fill( (255,255,100))
-        pygame.draw.rect(self.img1, (0,0,0), self.img1.get_rect(), 1)
-        pygame.draw.circle(self.img1, (50,50,50), self.img1.get_rect().center, 10)
-        
-        self.img2 = pygame.Surface( size)
-        self.img2.fill( (255,255,255))
-        pygame.draw.rect(self.img2, (0,0,0), self.img2.get_rect(), 1)
-        pygame.draw.circle(self.img2, (50,50,50), self.img2.get_rect().center, 10)
-        
-        self.img3 = pygame.Surface( size)
-        self.img3.fill( (155,155,155))
-        pygame.draw.rect(self.img3, (0,0,0), self.img3.get_rect(), 1)
-        pygame.draw.circle(self.img3, (50,50,50), self.img3.get_rect().center, 10)
-        
-        interface.BaseRenderer.__init__(self)
-        
-    def generate_image(self, object):
-        if object.selected:
-            return self.img1
-        elif object.mouse_is_over():
-            return self.img2
-        else:
-            return self.img3"""
+    def _draw_self(self, viewport, disp_rect):
+        load = self._game_object.carrying
+        if load is not None:
+            color = (load['qty']*2, 0, 0)
+            pygame.draw.rect( viewport.surface, color, disp_rect, 0)
+        interface.SpriteWidget._draw_self(self, viewport, disp_rect)
+
             
-class IncrementText(interface.TextGenerator):
-    def __init__(self, x):
-        self.x = x
-
-    def text_changed(self):
-        self.x += 1
-        return True
-        
-    def get_text(self):
-        return str(self.x)
-        
-class TestContextAction(interface.InterfaceAction):
-    def __init__(self, message):
-        self.message = message
-        interface.InterfaceAction.__init__(self)
-        
-    def do_action(self, src_widget, interface, game):
-        print "interface action: "+self.message
-        return True
-        
-class TestObject(game.GameObject):
-    def update(self):
-        self.position += (1,0)
-
-class MapMoveAction(interface.InterfaceAction):
-    def __init__(self, coords):
-        self._coords = coords
-        
-    def do_action(self, src_widget, interface, game):
-        obj = interface.selected_obj
-        if hasattr(obj, "game_object"):
-            obj.game_object.set_order(actor.MoveOrder(obj.game_object, game, self._coords))
-        
 class WidgetActivity( application.Activity):
     """Test activity for debugging."""
     
@@ -119,59 +57,67 @@ class WidgetActivity( application.Activity):
             tag = "ico" + str(i)
             self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
 
-        self.container2 = interface.DragPanel( self.iface, 
-                            (400,10,375,200))
-        self.testa = interface.TestWidget( self.iface, (25,50,100,30))
-        self.testb = interface.TestWidget( self.iface, (25,100,100,30))
-        self.testc = interface.TestWidget( self.iface, (25,150,100,30))
+        #self.container2 = interface.DragPanel( self.iface, 
+        #                    (400,10,375,200))
+        #self.testa = interface.TestWidget( self.iface, (25,50,100,30))
+        #self.testb = interface.TestWidget( self.iface, (25,100,100,30))
+        #self.testc = interface.TestWidget( self.iface, (25,150,100,30))
         
         text = interface.StaticText("Lorem ipsum delores")
         basetext = interface.StaticText("Options: ")
         optionstext = interface.LambdaTextGenerator( lambda: self.options)
-        inctext = IncrementText(0)
-        comptext = interface.CompositeTextGenerator((basetext, inctext))
+
+        #self.text3 = interface.TextLabel( self.iface, (135,150), "bigfont", text)
+        
+        #self.container2.add_child( self.testa)
+        #self.container2.add_child( self.testb)
+        #self.container2.add_child( self.testc)
+        #self.container2.add_child( self.text3)
+        #self.iface.add_child( self.container2)
 
         self.map = interface.MapWidget(self.iface, self.game)
         self.iface.add_child(self.map)
         
-        self.text1 = interface.TextLabel( self.iface, (135,50), "medfont", comptext)
-        self.text2 = interface.TextButton( self.iface, (135,100), "medfont", text, TestContextAction("Clicky"))
-        self.text3 = interface.TextLabel( self.iface, (135,150), "bigfont", text)
-        
-        self.container2.add_child( self.testa)
-        self.container2.add_child( self.testb)
-        self.container2.add_child( self.testc)
-        self.container2.add_child( self.text1)
-        self.container2.add_child( self.text2)
-        self.container2.add_child( self.text3)
-        #self.iface.add_child( self.container2)
-        
-        testobj = actor.Actor(self.game, (-100, 0))
-        testobj.target_orders = testobj.target_orders.union(['a','b','c'])        
-        testobj.ability_orders = testobj.ability_orders.union(['c','d'])
+        #person
+        testobj = actor.Actor(self.game, (-200, -200))
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = interface.GameObjWidget( self.iface, testobj)
+        testwidg = ActorWidget( self.iface, testobj, self.resources.get("person"))
         self.iface.add_child( testwidg)
 
-        testobj = actor.Actor(self.game, (100, 0))
-        testobj.target_orders = testobj.target_orders.union(['a','b','d'])
-        testobj.ability_orders = testobj.ability_orders.union(['a','b','d'])
+        #person2
+        testobj = actor.Actor(self.game, (-100, -200))
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = interface.GameObjWidget( self.iface, testobj)
+        testwidg = ActorWidget( self.iface, testobj, self.resources.get("person"))
         self.iface.add_child( testwidg)        
-
-        testobj = actor.Actor(self.game, (-100, 200))
-        testobj.target_orders = testobj.target_orders.union(['a','c','d'])
-        testobj.ability_orders = testobj.ability_orders.union(['b','d'])
-        self.game.add_game_object(testobj)        
-        testwidg = interface.GameObjWidget( self.iface, testobj)
-        self.iface.add_child( testwidg)   
         
-        testobj = actor.Actor(self.game, (100, 200))
-        testobj.target_orders = testobj.target_orders.union(['c','d'])
-        testobj.ability_orders = testobj.ability_orders.union(['a','b','d'])
+        #person3
+        testobj = actor.Actor(self.game, (-150, -200))
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = interface.GameObjWidget( self.iface, testobj)
+        testwidg = ActorWidget( self.iface, testobj, self.resources.get("person"))
+        self.iface.add_child( testwidg)        
+        
+        #hut
+        testobj = game.StructureObject(self.game, (100,100), (200, -200), 4)        
+        testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
+        self.game.add_game_object(testobj)        
+        testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("hut"))
+        self.iface.add_child( testwidg)
+
+        #rock
+        testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
+        testobj.target_actions = testobj.target_actions.union(['mine'])
+        self.game.add_game_object(testobj)
+        testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("rock"))
+        self.iface.add_child( testwidg)
+        
+        #trees
+        testobj = game.StructureObject(self.game, (100,100), (200, 170), 1)
+        testobj.target_actions = testobj.target_actions.union(['cut-wood'])
+        self.game.add_game_object(testobj)        
+        testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("tree"))
         self.iface.add_child( testwidg)
         
 
@@ -190,6 +136,7 @@ class WidgetActivity( application.Activity):
             self.vp.pan( (0,2))
         elif pressed[K_w]:
             self.vp.pan( (0,-2))
+
             
     def draw(self):
         application.Activity.draw(self)
@@ -218,100 +165,15 @@ class WidgetActivity( application.Activity):
                 self.vp.zoom_in()
             elif event.button == 5:
                 self.vp.zoom_out()
-            elif event.button == 3:
-                options = []
-                for x in range(self.options):
-                    options.append({ "icon": self.icons[x],
-                                     "text": "Option "+str(x),
-                                     "action": TestContextAction("Action: "+str(x))})
-
-                #cm = interface.RadialContextMenu(self.iface, event.pos, options)
-                cm = interface.TextContextMenu(self.iface, event.pos, options)
-                self.iface.set_context_menu(cm)                
                 
         if event.type == pygame.KEYDOWN:
             if event.key == K_COMMA:
                 self.options = max(self.options-1, 1)
             elif event.key == K_PERIOD:
                 self.options = min(self.options+1, 8)
+            elif event.key == K_ESCAPE:
+                self.finish()
                 
-class ViewportActivity( application.Activity):
-    """Test activity for debugging."""
-    
-    def on_create(self, config):
-        application.Activity.on_create(self, config)
-        self.controller.set_fps_cap( 50)
-        self.vp = viewport.Viewport( self.controller.screen)
-        self.vp.transform.set_rotation_interval( 5)
-        
-        self.iface = interface.InterfaceManager(self)
-        self.game = game.Game()
-
-        self.resources = resourcemanager.ResourceManager()
-        self.resources.load_set("res/resources.txt")
-
-        self.iface.add_child(interface.VPWidget(self.iface, (-40, -40)))
-        self.iface.add_child(interface.VPWidget(self.iface, (-40, 0)))
-        self.iface.add_child(interface.VPWidget(self.iface, (-40, 40)))
-        self.iface.add_child(interface.VPWidget(self.iface, (0, -40)))
-        self.iface.add_child(interface.VPWidget(self.iface, (0, 0)))
-        self.iface.add_child(interface.VPWidget(self.iface, (0, 40)))
-        self.iface.add_child(interface.VPWidget(self.iface, (40, -40)))
-        self.iface.add_child(interface.VPWidget(self.iface, (40, 0)))
-        self.iface.add_child(interface.VPWidget(self.iface, (40, 40)))
-        
-    def update(self):
-        application.Activity.update(self)
-        self.iface.update( self.vp)
-        self.game.update()        
-        
-        pressed = pygame.key.get_pressed()
-            
-        if pressed[K_d]:
-            self.vp.pan( (2,0))
-        elif pressed[K_a]:
-            self.vp.pan( (-2,0))
-        if pressed[K_s]:
-            self.vp.pan( (0,2))
-        elif pressed[K_w]:
-            self.vp.pan( (0,-2))
-            
-    def draw(self):
-        application.Activity.draw(self)
-        
-        pos = pygame.mouse.get_pos()
-        pygame.draw.circle( self.vp.surface, (255,255,255), pos, 
-                            int(15*self.vp.scale), int(self.vp.scale*4))
-
-        self.iface.draw( self.vp)
-
-    def handle_event(self, event):
-        if hasattr( event, 'pos'):
-            event.gamepos = self.vp.translate_point(event.pos, 
-                                                    viewport.SCREEN_TO_GAME)
-                                                    
-        if hasattr( event, 'rel'):
-            event.rel_motion = (round(event.rel[0]/self.vp.scale),
-                                round(event.rel[1]/self.vp.scale))
-            event.abs_motion = event.rel
-                                                    
-        if self.iface.handle_event( event):
-            return
-
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 4:
-                self.vp.zoom_in()
-            elif event.button == 5:
-                self.vp.zoom_out()
-            elif event.button == 3:
-                self.icon.center_on( event.gamepos)
-                
-        if event.type == pygame.KEYDOWN:
-            if event.key == K_COMMA:
-                self.options = max(self.options-1, 1)
-            elif event.key == K_PERIOD:
-                self.options = min(self.options+1, 8)            
-        
 def run():
 
     app = CivilisApp()

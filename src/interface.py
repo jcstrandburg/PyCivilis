@@ -20,6 +20,8 @@ LAYER_IFACE         = 40
 LAYER_IFACE_LOWER   = 40
 LAYER_IFACE_UPPER   = 50
 
+
+
 class InterfaceManager( object):
     """Class that manages and controls a generic interface system."""
 
@@ -52,15 +54,12 @@ class InterfaceManager( object):
         if self._context_menu is not None:
             if self._context_menu.finished:
                 self.cancel_context_menu()
-
-        #abs_mouse = pygame.mouse.get_pos()
-        #rel_mouse = viewport.translate_point( abs_mouse, viewport_mod.SCREEN_TO_GAME)
                 
         for c in self._children:
             c.update( viewport, pygame.mouse.get_pos())
             
         #resort objects by layer/position
-        self._children.sort( key=lambda obj: obj.layer)#probably need to use y in sorting also (not here, in viewport or something)
+        self._children.sort( key=lambda obj: obj.layer *100000 + obj._disp_rect.bottom )
             
     def set_context_menu(self, cmenu):
         """Cancels current context menu and sets a new one."""
@@ -176,6 +175,7 @@ class TextGenerator(object):
         
     def get_text(self):
         raise NotImplementedError("TextGenerator.get_text")
+
         
 class StaticText(TextGenerator):
     def __init__(self, text):
@@ -186,7 +186,8 @@ class StaticText(TextGenerator):
     
     def get_text(self):
         return self._text
-        
+   
+   
 class LambdaTextGenerator(TextGenerator):
     def __init__(self, lam):
         self._lambda = lam
@@ -201,7 +202,8 @@ class LambdaTextGenerator(TextGenerator):
         
     def get_text(self):
         return self._text
-        
+       
+       
 class CompositeTextGenerator(TextGenerator):
     def __init__(self, generators):
         self._generators = tuple(generators)
@@ -221,6 +223,7 @@ class CompositeTextGenerator(TextGenerator):
         
     def get_text(self):
         return self._text            
+    
     
 class WidgetBehavior(object):
     """Container class for all base widget behaviors."""
@@ -302,7 +305,8 @@ class WidgetBehavior(object):
 
     def _super_deaf_event_handler(self, event):
         return False
-        
+   
+   
 class BaseWidget(WidgetBehavior):
     
     def __init__(self, manager, rect, layer=LAYER_BASE):
@@ -402,9 +406,9 @@ class BaseWidget(WidgetBehavior):
         if self.clamp:
             return newrect.clamp( self._space_rect)
         else:
-            return newrect        
-
-        
+            return newrect
+ 
+ 
 class MapWidget(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
@@ -429,6 +433,7 @@ class MapWidget(BaseWidget):
                 return True
         return BaseWidget._self_handle_event(self, event)
             
+            
 class TestWidget(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
@@ -450,6 +455,7 @@ class TestWidget(BaseWidget):
         pygame.draw.rect( viewport.surface, (0,0,0), rect)
         pygame.draw.rect( viewport.surface, color, rect.inflate((-2,-2)))
 
+        
 class TestPanel(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
@@ -466,6 +472,7 @@ class TestPanel(BaseWidget):
             framecolor = (0,0,0)
         pygame.draw.rect( viewport.surface, framecolor, rect)
         pygame.draw.rect( viewport.surface, (155,155,155), rect.inflate(-4,-4))
+        
         
 class DragBar(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
@@ -507,6 +514,7 @@ class DragPanel(TestPanel):
         dragrect.h = 20
         self.add_child( DragBar(manager, dragrect))
         
+        
 class IconWidget(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
@@ -522,6 +530,7 @@ class IconWidget(BaseWidget):
         
     def _draw_self(self, viewport, rect):
         viewport.surface.blit(self.icon, rect)
+        
         
 class TextLabel(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
@@ -548,6 +557,7 @@ class TextLabel(BaseWidget):
             self._regenerate()
         viewport.surface.blit( self._img, rect)
 
+        
 class TextButton(TextLabel):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
@@ -569,6 +579,7 @@ class TextButton(TextLabel):
     def _draw_self(self, viewport, rect):
         self._img = self._altimg if self._mouseover else self._mainimg
         TextLabel._draw_self(self, viewport, rect)
+        
         
 class RadialContextMenu(BaseWidget):
     """Base class for generic context menus, with options deployed 
@@ -622,7 +633,8 @@ class RadialContextMenu(BaseWidget):
         
     def translate_rect(self, rect):
         return rect.move( self._space_rect.center)
-        
+ 
+ 
 class TextContextMenu(BaseWidget):
     """Base class for generic context menus, with options deployed 
     in a circular model."""
@@ -662,34 +674,43 @@ class TextContextMenu(BaseWidget):
         
     def _draw_self(self, viewport, rect):
         pygame.draw.rect(viewport.surface, (150,150,150), rect)
+
         
 class TextContextItem(TextButton):
     get_disp_rect = BaseWidget._absolute_get_disp_rect
-        
+
+    
 class GameObjWidget(BaseWidget):
-    """Base class for all interface objects."""
-    update_rect = BaseWidget._relative_update_rect
+    #update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
     get_disp_rect = BaseWidget._relative_get_disp_rect
     _update_handler = BaseWidget._opaque_update
     
-    def __init__(self, manager, obj, layer=LAYER_GAME_FG):
-        BaseWidget.__init__(self,manager,obj.rect,layer)
-        self._game_object = obj
+    def __init__(self, manager, obj, rect=None, layer=LAYER_GAME_FG):
+        if rect is None:
+            rect = obj.rect
+        self._game_object = obj            
+        BaseWidget.__init__(self,manager,rect,layer)
         self._selectable = obj.selectable
 
+    def update_rect(self):
+        self._space_rect = self.game_object.rect
+        self._children_update_rect()
+        
     def _update_handler(self, viewport, mousepos):
-        if self._base_rect.center != self._game_object.rect.center:
-            self._base_rect.center = self._game_object.rect.center
+        if self._base_rect.midbottom != self._game_object.rect.midbottom:
+            self._base_rect.midbottom = self._game_object.rect.midbottom
             self.update_rect()
         BaseWidget._opaque_update(self, viewport, mousepos)
         
     def _draw_self(self, viewport, rect):
-        if self.selected:
+        if self._mouseover:
+            color = (255,255,0)
+        elif self.selected:
             color = (255,255,255)
         else:
             color = (100,100,100)
-        pygame.draw.rect(viewport.surface, color, rect)
+        pygame.draw.rect(viewport.surface, color, rect, 2)
         
     def select(self):
         BaseWidget.select(self)
@@ -703,23 +724,25 @@ class GameObjWidget(BaseWidget):
         return self._game_object
         
     def _self_handle_event(self, event):
-        if event.type == MOUSEBUTTONDOWN and event.button == 3:
+        if self._mouseover and event.type == MOUSEBUTTONDOWN and event.button == 3:
             game = self.manager.controller.game
             if game.selected_obj is not None and game.selected_obj != self.game_object:
-                #overlap = self._game_object.target_orders.intersection( game.selected_obj.ability_orders)
-                builder = OrderMenuBuilder(self.game_object, game.selected_obj)#, overlap)
-                builder.make_menu(event, self.manager)
-                return True
+                builder = OrderMenuBuilder(self.game_object, game.selected_obj)
+                return builder.make_menu(event, self.manager)
         return BaseWidget._self_handle_event(self, event)
         
     game_object = property( get_game_object)
-    
+ 
+ 
 class OrderMenuBuilder(object):
     def __init__(self, target, selected):
         self.builder = actor.OrderBuilder(selected, target)
         self.options = self.builder.get_options()
-        
+
     def make_menu(self, event, interface):
+        if len(self.options) == 0:
+            return False
+
         items = []
         for o in self.options:
             action = OrderBuilderAction(self.builder, o)
@@ -727,6 +750,8 @@ class OrderMenuBuilder(object):
             items.append( item)
         cm = TextContextMenu(interface, event.pos, items)
         interface.set_context_menu(cm)
+        return True
+
         
 class OrderBuilderAction(InterfaceAction):
     def __init__(self, builder, ordertag):
@@ -737,10 +762,67 @@ class OrderBuilderAction(InterfaceAction):
         self.builder.do_order( self.tag)
         return True
 
+        
+class SpriteWidget(GameObjWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
 
+    def __init__(self, manager, obj, img):
+        self.img = img
+        rect = self.img.get_rect()
+    
+        GameObjWidget.__init__(self, manager, obj, rect, LAYER_GAME_FG)
+        
+    def _draw_self(self, viewport, disp_rect):
+        img = viewport.transform.scale(self.img, viewport.scale)
+        viewport.surface.blit(img, disp_rect)
+        
+        if self._mouseover:
+            pygame.draw.rect(viewport.surface, (255,255,0), disp_rect, 1)
+        elif self.selected:
+            pygame.draw.rect(viewport.surface, (255,255,255), disp_rect, 1)
 
+            
+class InvisWidget(BaseWidget):
+    update_rect = BaseWidget._relative_update_rect
+    handle_event = BaseWidget._standard_event_handler
+    get_disp_rect = BaseWidget._relative_get_disp_rect
+    _update_handler = BaseWidget._opaque_update
+    
+    def _draw_self(self, viewport, rect):
+        pygame.draw.rect( viewport.surface, (255,255,255), rect, 4)
 
+class WorkspaceWidget(GameObjWidget):
+    def __init__(self, manager, obj, rect=None, layer=LAYER_GAME_FG):
+        GameObjWidget.__init__(self, manager, obj, rect, layer)
+        self.img = manager.controller.resources.get("workspace")
 
+    def _draw_self(self, viewport, disp_rect):
+        '''img = viewport.transform.scale(self.img, viewport.scale)
+        viewport.surface.blit(img, disp_rect)
+        
+        if self._mouseover:
+            pygame.draw.rect(viewport.surface, (255,255,0), disp_rect, 1)
+        elif self.selected:
+            pygame.draw.rect(viewport.surface, (255,255,255), disp_rect, 1)'''
+            
+        color = (255,255,255) if self.game_object.reserved else (100,100,100)
+        pygame.draw.ellipse(viewport.surface, color, disp_rect, 1)
+        
+class StructWidget(SpriteWidget):
+
+    def __init__(self, manager, obj, img):
+        SpriteWidget.__init__(self, manager, obj, img)
+
+        for w in obj.workspaces:
+            c = vector.Vec2d(w.rect.center) - obj.rect.center
+            newrect = w.rect.copy()
+            newrect.center = c
+            
+            gw = WorkspaceWidget(manager, w, newrect, LAYER_GAME_FG)
+            self.add_child( gw)
+        
 
 
 
