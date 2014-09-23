@@ -90,13 +90,13 @@ class ForageTask(Task):
         self._source = source
         
     def do_step(self, actor):
-        if actor.carrying is None:
+        if actor.carrying is None or actor.carrying['type'] != 'stone':
             actor.carrying = {'type':"stone", 'qty':0}
             
-        actor.carrying['qty'] += 1
+        actor.carrying['qty'] += .3
     
-        if actor.carrying['qty'] >= 100:
-            actor.carrying['qty'] = 100
+        if actor.carrying['qty'] >= 1.0:
+            actor.carrying['qty'] = 1.0
             actor.target_workspace.release()
             self._completed = True
             
@@ -111,9 +111,27 @@ class ForageTask(Task):
 class DumpTask(Task):
         
     def do_step(self, actor):
+        deposited = False
+        if actor.storage_reservation is not None:
+            actor.storage_reservation.release()            
+            deposited = actor.storage_reservation.structure.res_storage.deposit( actor.carrying['type'], actor.carrying['qty'])
+            actor.storage_reservation = None
+    
+        if not deposited:
+            print "DumpTask failed to deposit resources, dumping behavior not implemented yet."
         actor.carrying = None
-        self._completed = True      
+        self._completed = True
 
+class ReserveStorageTask(Task):
+
+    def __init__(self, actor, game):
+        Task.__init__(self)
+        self._game = game
+        
+    def do_step(self, actor):
+        reservation = self._game.reserve_storage(actor.position, actor.carrying)
+        actor.storage_reservation = reservation
+        self._completed = True
 
 class ReserveWorkspaceTask(Task):
     def __init__(self, structure):
@@ -129,6 +147,7 @@ class ReserveWorkspaceTask(Task):
             self._completed = True
         else:
             pass
+            #self._reservation.maintain()
         
     def cancel(self, actor):
         self._reservation.release()
@@ -180,48 +199,50 @@ class ForageOrder(Order):
     def __init__(self, actor, game, target):
         Order.__init__(self, actor, game)
         self._task_state = self._state_seek_forage_location
+        self._game = game
         self._actor = actor
         self._target = target
         
     def _state_seek_forage_location(self):
         diff = -self._actor.position + self._target.position
         length = diff.length - 125
-        print diff, length
         targetpos = self._actor.position.interpolate_to(self._target.position, length/diff.length)
-        print self._target.position, targetpos
         
         self._task_state = self._state_reserve_forage_workspace
-        print "seek forage"
         return SimpleMoveTask(targetpos)    
         
     def _state_reserve_forage_workspace(self):
         self._task_state = self._state_seek_workspace
-        print "reserve forage"
         return ReserveWorkspaceTask(self._target)
         
     def _state_seek_workspace(self):
         self._task_state = self._state_do_forage
-        print "seek workspace"
         return SimpleMoveTask(self._actor.target_workspace.position)
     
     def _state_do_forage(self):
-        self._task_state = self._state_seek_storage
-        print "do forage"
+        self._task_state = self._state_reserve_storage
         return ForageTask(self._target)
         
     def _state_reserve_storage(self):
-        print "reserve storage"
-        return None
+        self._task_state = self._state_seek_storage
+        return ReserveStorageTask(self._actor, self._game)
         
     def _state_seek_storage(self):
         self._task_state = self._state_dump_storage
-        print "seek storage"
-        return SimpleMoveTask((random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
+        if self._actor.storage_reservation is not None:
+            return SimpleMoveTask(self._actor.storage_reservation.structure.position)
+        else:
+            return SimpleMoveTask((random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
         
     def _state_dump_storage(self):
         self._task_state = self._state_seek_forage_location
-        print "dump storage"
         return DumpTask()
+        
+    def cancel(self):
+        Order.cancel(self)
+        if self.actor.target_workspace is not None:
+            self.actor.target_workspace.release()
+            self.actor.target_workspace = None
         
 class OrderBuilder(object):
     def __init__(self, selected, target):

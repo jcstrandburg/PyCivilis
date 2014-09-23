@@ -30,6 +30,7 @@ class InterfaceManager( object):
         self._children = []
         self.controller = controller
         self._context_menu = None
+        self._selection_menu = None
         self._motion_listeners = []
         
         self.fonts = {
@@ -72,6 +73,15 @@ class InterfaceManager( object):
         if self._context_menu is not None:
             self._children.remove( self._context_menu)
             self._context_menu = None
+            
+    def set_selection_menu(self, smenu):
+        if self._selection_menu is not None:
+            self._children.remove( self._selection_menu)
+            self._selection_menu = None
+        
+        if smenu is not None:
+            self._selection_menu = smenu
+            self.add_child( smenu)
         
     def add_child(self, widget):
         self._children.append(widget)
@@ -330,9 +340,14 @@ class BaseWidget(WidgetBehavior):
         
     def select(self):
         self.selected = True
+        sel_menu = self.get_selection_menu()
+        print "Setting selection menu to something"        
+        self.manager.set_selection_menu( sel_menu)
     
     def deselect(self):
         self.selected = False
+        print "Setting selection menu to none"
+        self.manager.set_selection_menu( None)
 
     def handle_event(self, event):
         """Handles a pygame input event."""
@@ -351,6 +366,9 @@ class BaseWidget(WidgetBehavior):
                         handled = handled or self.manager.do_action( self, self._rclick_action)                        
                 
         return handled
+        
+    def get_selection_menu(self):
+        return None
         
     def move(self, offset):
         self._base_rect.move_ip( offset)
@@ -455,7 +473,7 @@ class TestWidget(BaseWidget):
         pygame.draw.rect( viewport.surface, color, rect.inflate((-2,-2)))
 
         
-class TestPanel(BaseWidget):
+class Panel(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
     handle_event = BaseWidget._standard_event_handler
     get_disp_rect = BaseWidget._absolute_get_disp_rect
@@ -503,11 +521,10 @@ class DragBar(BaseWidget):
         return BaseWidget._self_handle_event(self, event)
         
                 
-class DragPanel(TestPanel):
-    get_disp_rect = BaseWidget._absolute_get_disp_rect
+class DragPanel(Panel):
 
     def __init__(self, manager, rect, layer=LAYER_IFACE_UPPER):
-        TestPanel.__init__(self, manager, rect, layer)
+        Panel.__init__(self, manager, rect, layer)
         dragrect = pygame.Rect(rect).inflate( (-4,0))
         dragrect.topleft = (2,2)
         dragrect.h = 20
@@ -798,14 +815,9 @@ class WorkspaceWidget(GameObjWidget):
         self.img = manager.controller.resources.get("workspace")
 
     def _draw_self(self, viewport, disp_rect):
-        '''img = viewport.transform.scale(self.img, viewport.scale)
+        img = viewport.transform.scale(self.img, viewport.scale)
         viewport.surface.blit(img, disp_rect)
         
-        if self._mouseover:
-            pygame.draw.rect(viewport.surface, (255,255,0), disp_rect, 1)
-        elif self.selected:
-            pygame.draw.rect(viewport.surface, (255,255,255), disp_rect, 1)'''
-            
         color = (255,255,255) if self.game_object.reserved else (100,100,100)
         pygame.draw.ellipse(viewport.surface, color, disp_rect, 1)
         
@@ -813,6 +825,7 @@ class StructWidget(SpriteWidget):
 
     def __init__(self, manager, obj, img):
         SpriteWidget.__init__(self, manager, obj, img)
+        self._selectable = True
 
         for w in obj.workspaces:
             c = vector.Vec2d(w.rect.center) - obj.rect.center
@@ -822,9 +835,18 @@ class StructWidget(SpriteWidget):
             gw = WorkspaceWidget(manager, w, newrect, LAYER_GAME_FG)
             self.add_child( gw)
         
+    def get_selection_menu(self):
+        panel = Panel(self.manager, (0,0,200,600))
+        headline = CompositeTextGenerator( (StaticText("Hello Motto: "), LambdaTextGenerator(lambda: self._game_object.get_capacity(None))))
+        text = TextLabel(self.manager, (30, 30), 'medfont', headline)
+        panel.add_child( text)        
+        
+        store = self._game_object.res_storage
+        if store is not None:
+            offset = 1
+            for key in store.accepts:
+                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key), LambdaTextGenerator(lambda bound_key=key: store.get_contents(bound_key))]))
+                panel.add_child( text)
+                offset += 1
 
-
-
-
-
-
+        return panel

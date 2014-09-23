@@ -2,7 +2,6 @@ import pygame, math
 from collections import deque
 
 import vector
-import game
 
 LEFTCLICK = 1
 RIGHTCLICK = 2
@@ -26,12 +25,12 @@ class Game(object):
                 self._objects[i] = self._objects[j]
                 i+=1        
             j += 1        
-        del self._objects[i:]        
+        del self._objects[i:]
             
     def add_game_object(self, obj):
         self._objects.append(obj)
         
-    def remove_game_object(self, ojb):
+    def remove_game_object(self, obj):
         self._objects.remove(obj)
         
     def new_object_id(self):
@@ -44,6 +43,22 @@ class Game(object):
     def deselect(self, object):
         if self.selected_obj == object:
             self.selected_obj = None
+            
+    """Game specific code"""
+    
+    def reserve_storage(self, position, carrying):
+        candidates = []
+        for x in xrange(len(self._objects)):
+            obj = self._objects[x]
+            if hasattr(obj, "get_capacity"):
+                if obj.get_capacity(carrying['type']) >= carrying['qty']:
+                    candidates.append( obj)
+
+        candidates.sort(key=lambda candidate: (candidate.position-position).get_length())
+                    
+        if ( len(candidates) > 0):
+            return candidates[0].reserve_storage(carrying['type'], carrying['qty'])
+        return None
             
 class GameObject(object):
     """Base class for all objects that exist within the game simulation."""
@@ -91,17 +106,17 @@ class GameObject(object):
         old_sel = self._selected
         self._selected = sel        
         
-        if ( old_sel == False and sel == True and selectable()):
+        if ( old_sel == False and sel == True and self.selectable()):
             self.on_select()
         elif ( old_sel == True and sel == False):
             self.on_deselect()        
 
     selected = property(_get_selected, _set_selected)
             
-    def on_create():
+    def on_create(self):
         pass
         
-    def on_destroy():
+    def on_destroy(self):
         pass
         
     def update(self):
@@ -123,21 +138,17 @@ class Workspace(GameObject):
         print "released"
         self.reserved = False
         
-class WorkspaceReservation(object):
+class Reservation(object):
     def __init__(self):
         self.valid = True
         self.timer = 0
-        self.workspace = None
-        self.ready = False
-        
-    def make_ready(self, workspace):
+        self.ready = False    
+    
+    def make_ready(self):
         self.ready = True
-        self.timer = 25
-        self.workspace = workspace
+        self.timer = 2500
 
     def release(self):
-        if self.workspace is not None:
-            self.workspace.release()
         self.valid = False
         
     def update(self):
@@ -146,24 +157,74 @@ class WorkspaceReservation(object):
             if self.timer <= 0:
                 self.timer = 0
                 self.valid = False
+        
+class WorkspaceReservation(Reservation):
+    def __init__(self):
+        Reservation.__init__(self)
+        self.workspace = None
+        
+    def make_ready(self, workspace):
+        Reservation.make_ready(self)
+        self.workspace = workspace
+
+    def release(self):
+        Reservation.release(self)
+        if self.workspace is not None:
+            self.workspace.release()
+        
+class StorageReservation(Reservation):
+    def __init__(self):
+        Reservation.__init__(self)
+        self.structure = None
+        
+    def make_ready(self, structure):
+        Reservation.make_ready(self)
+        self.structure = structure
+
+    def release(self):
+        Reservation.release(self)
 
 class ResourceStorage(object):
-    def __init__(self, capacity, accept_list):
+    def __init__(self, structure, capacity, accept_list):
+        self.structure = structure
         self.accepts = tuple(accept_list)
         self.capacity = capacity
         self.contents = {}
+        self.reservations = []
         for tag in self.accepts:
             self.contents[tag] = 0
+
+    def reserve(self, tag, amount=1):
+        cap = self.get_capacity(tag)
+        if cap >= amount:
+            res = StorageReservation()
+            res.make_ready(self.structure)
+            self.reservations.append(res)
+            return res
+        else:
+            return None
             
     def deposit(self, tag, amount=1):
+        if self.get_capacity(tag) < amount:
+            return False
+                    
         try:
             self.contents[tag] += amount
         except KeyError:
-            self.contents[tag] = amount
+            if tag in self.accepts:
+                self.contents[tag] = amount
+                
+        return True
             
     def get_capacity(self, tag):
         if tag is None or tag in self.accepts:
-            return self.get_capacity(None)
+            cap = self.capacity
+            for key in self.contents:
+                cap -= self.contents[key]
+            for r in self.reservations:
+                if r.valid:
+                    cap -= 1
+            return cap
         else:
             return 0
 
@@ -175,6 +236,13 @@ class ResourceStorage(object):
                 return self.contents[tag]
             except KeyError:
                 return 0
+            
+    def update(self):
+        for r in self.reservations:
+            r.update()
+
+        self.reservations[:] = [r for r in self.reservations if r.valid]           
+            
             
     def withdraw(self, tag, amount):
         try:
@@ -190,7 +258,8 @@ class StructureObject(GameObject):
         GameObject.__init__(self,game,size,position)
         self.workspaces = []
         self.reservations = []
-        self.res_storage = ResourceStorage(10, ('stone', 'wood'))
+        self.ready_reservations = []
+        self.res_storage = None
         
         rad = math.pi/4.0
         arc = (num_workspaces-1)*rad
@@ -202,9 +271,24 @@ class StructureObject(GameObject):
             pos = vector.Vec2d(dist*math.sin(angle), dist*math.cos(angle)) + basepos
             workspace = Workspace(game, pos)
             self.workspaces.append( workspace)
+            
+    def set_storage(self, cap, accepts):
+        self.res_storage = ResourceStorage(self, cap, accepts)
         
     def update(self):
         GameObject.update(self)
+        
+        if self.res_storage is not None:
+            self.res_storage.update()
+        
+        #update ready workspace reservations
+        for res in self.ready_reservations:
+            res.update()
+            
+            if not res.valid:
+                res.workspace.release()
+                
+        self.ready_reservations[:] = [r for r in self.ready_reservations if r.valid]                
         
         #nix invalid reservations
         while len(self.reservations) > 0 and self.reservations[0].valid == False:
@@ -215,8 +299,8 @@ class StructureObject(GameObject):
             res = self.reservations[0]
             for wspace in self.workspaces:
                 if not wspace.reserved:
-                    print "ready"
                     res.make_ready( wspace)
+                    self.ready_reservations.append( res)
                     self.reservations.pop(0)
                     break
                 
@@ -226,3 +310,14 @@ class StructureObject(GameObject):
         self.reservations.append( reservation)
         return reservation
     
+    def get_capacity(self, tag):
+        if self.res_storage is not None:
+            return self.res_storage.get_capacity(tag)
+        else:
+            return 0
+    
+    def reserve_storage(self, tag, qty):
+        if self.res_storage is not None:
+            return self.res_storage.reserve(tag, qty)
+        else:
+            return None

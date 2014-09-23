@@ -1,16 +1,12 @@
 #global lib impports
 import pygame
 from pygame.locals import *
-import math
-import sys
 
 #local imports
 import application
-import transform
 import viewport
 import resourcemanager
 import game
-import vector
 import interface
 import actor
 
@@ -29,7 +25,7 @@ class ActorWidget( interface.SpriteWidget):
     def _draw_self(self, viewport, disp_rect):
         load = self._game_object.carrying
         if load is not None:
-            color = (load['qty']*2, 0, 0)
+            color = (load['qty']*200, 0, 0)
             pygame.draw.rect( viewport.surface, color, disp_rect, 0)
         interface.SpriteWidget._draw_self(self, viewport, disp_rect)
 
@@ -99,13 +95,22 @@ class WidgetActivity( application.Activity):
         testwidg = ActorWidget( self.iface, testobj, self.resources.get("person"))
         self.iface.add_child( testwidg)        
         
-        #hut
-        testobj = game.StructureObject(self.game, (100,100), (200, -200), 4)        
+        #hut2
+        testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
+        testobj.set_storage(10, ('stone', 'wood'))        
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("hut"))
         self.iface.add_child( testwidg)
-
+        
+        #hut
+        testobj = game.StructureObject(self.game, (100,100), (200, -200), 4)
+        testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
+        testobj.set_storage(10, ('stone', 'wood'))        
+        self.game.add_game_object(testobj)        
+        testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("hut"))
+        self.iface.add_child( testwidg)
+        
         #rock
         testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
         testobj.target_actions = testobj.target_actions.union(['mine'])
@@ -114,7 +119,7 @@ class WidgetActivity( application.Activity):
         self.iface.add_child( testwidg)
         
         #trees
-        testobj = game.StructureObject(self.game, (100,100), (200, 170), 1)
+        testobj = game.StructureObject(self.game, (100,100), (200, 170), 2)
         testobj.target_actions = testobj.target_actions.union(['cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("tree"))
@@ -173,6 +178,18 @@ class WidgetActivity( application.Activity):
                 self.options = min(self.options+1, 8)
             elif event.key == K_ESCAPE:
                 self.finish()
+            elif event.key == K_z:
+                x = self.game.selected_obj
+                if hasattr(x, "res_storage"):
+                    x.res_storage.deposit( 'wood', 1)
+                else:
+                    print "I can't find it"
+            elif event.key == K_x:
+                x = self.game.selected_obj
+                if hasattr(x, "res_storage"):
+                    x.res_storage.deposit( 'stone', 1)
+                else:
+                    print "I can't find it"
                 
 def run():
 
