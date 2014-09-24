@@ -194,6 +194,10 @@ class ResourceStorage(object):
         for tag in self.accepts:
             self.contents[tag] = 0
 
+    def do_decay(self):
+        for key in self.contents:
+            self.contents[key] = max(0, self.contents[key]-0.005)
+
     def reserve(self, tag, amount=1):
         cap = self.get_capacity(tag)
         if cap >= amount:
@@ -321,3 +325,11 @@ class StructureObject(GameObject):
             return self.res_storage.reserve(tag, qty)
         else:
             return None
+
+
+class ResourcePile(StructureObject):
+    def update(self):
+        StructureObject.update(self)
+        self.res_storage.do_decay()
+        if self.res_storage.get_capacity(None) >= 1:
+            self.finished = True

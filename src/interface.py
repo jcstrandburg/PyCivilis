@@ -715,6 +715,11 @@ class GameObjWidget(BaseWidget):
         BaseWidget.__init__(self,manager,rect,layer)
 
 
+    def update(self, viewport, mousepos):
+        BaseWidget.update(self, viewport, mousepos)
+        if self._game_object is not None:
+            self.finished = self._game_object.finished
+
     def update_rect(self):
         if self._game_object is not None:
             self._space_rect = self.game_object.rect
@@ -770,14 +775,22 @@ class OrderMenuBuilder(object):
         if len(self.options) == 0:
             return False
 
-        items = []
-        for o in self.options:
-            action = OrderBuilderAction(self.builder, o)
-            item = {"text": o, "action": action}
-            items.append( item)
-        cm = TextContextMenu(interface, event.pos, items)
-        interface.set_context_menu(cm)
-        return True
+        if len(self.options) > 1:
+            items = []
+            for o in self.options:
+                action = OrderBuilderAction(self.builder, o)
+                item = {"text": o, "action": action}
+                items.append( item)
+            cm = TextContextMenu(interface, event.pos, items)
+            interface.set_context_menu(cm)
+            return True
+        elif len(self.options) == 1:
+            option = self.options.pop()
+            self.builder.do_order(option)
+            return True
+        else:
+            return False
+            
 
         
 class OrderBuilderAction(InterfaceAction):
@@ -852,7 +865,7 @@ class StructWidget(SpriteWidget):
         
     def get_selection_menu(self):
         panel = Panel(self.manager, (0,0,200,600))
-        headline = CompositeTextGenerator( (StaticText("Hello Motto: "), LambdaTextGenerator(lambda: self._game_object.get_capacity(None))))
+        headline = CompositeTextGenerator( (StaticText("Available: "), LambdaTextGenerator(lambda: self._game_object.get_capacity(None))))
         text = TextLabel(self.manager, (30, 30), 'medfont', headline)
         panel.add_child( text)        
         

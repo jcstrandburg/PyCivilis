@@ -42,6 +42,32 @@ class ActorWidget( interface.SpriteWidget):
             self.carry_widget.img = None
         interface.SpriteWidget._draw_self(self, viewport, disp_rect)
 
+class ResourcePileWidget( interface.SpriteWidget):
+    def _draw_self(self, viewport, disp_rect):
+        interface.SpriteWidget._draw_self(self, viewport, disp_rect)
+        bar_rect = disp_rect.copy()
+        bar_rect.h = 5
+        bar_rect.bottom = disp_rect.bottom
+        bar_rect.w = int(bar_rect.w * (1.0-self._game_object.res_storage.get_capacity(None)))
+        bar_rect.w = max(1, bar_rect.w)
+        pygame.draw.rect(viewport.surface, (255,0,0), bar_rect, 0)
+
+    def get_selection_menu(self):
+        panel = interface.Panel(self.manager, (0,0,200,600))
+        headline = interface.CompositeTextGenerator( (interface.StaticText("Available: "), interface.LambdaTextGenerator(lambda: self._game_object.get_capacity(None))))
+        text = interface.TextLabel(self.manager, (30, 30), 'medfont', headline)
+        panel.add_child( text)        
+        
+        store = self._game_object.res_storage
+        if store is not None:
+            offset = 1
+            for key in store.accepts:
+                text = interface.TextLabel(self.manager, (30, 30+offset*30), 'medfont', interface.CompositeTextGenerator([interface.StaticText(key), interface.LambdaTextGenerator(lambda bound_key=key: store.get_contents(bound_key))]))
+                panel.add_child( text)
+                offset += 1
+
+        return panel
+
 class DictEvent(object):
     '''This is a big ugly hack designed to force pygame events to have dictionaries so you can add new attributes to them.'''
     def __init__(self, event):
@@ -113,6 +139,7 @@ class TestActivity( application.Activity):
         self.font = pygame.font.Font(None, 24)
         self.iface = interface.InterfaceManager(self)
         self.game = game.Game()
+        self.game.controller = self
         self.ticker = 1
         self.options = 5
 
@@ -172,15 +199,15 @@ class TestActivity( application.Activity):
         #hut2
         testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(10, ('stone', 'wood'))        
-        self.game.add_game_object(testobj)        
+        testobj.set_storage(2, ('stone', 'wood'))        
+        #self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
-        self.iface.add_child( testwidg)
+        #self.iface.add_child( testwidg)
         
         #hut
-        testobj = game.StructureObject(self.game, (100,100), (200, -200), 4)
+        testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(10, ('stone', 'wood'))        
+#        testobj.set_storage(2, ('stone', 'wood'))        
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
@@ -195,15 +222,20 @@ class TestActivity( application.Activity):
         #trees
         testobj = game.StructureObject(self.game, (100,100), (200, 170), 2)
         testobj.target_actions = testobj.target_actions.union(['cut-wood'])
-        self.game.add_game_object(testobj)        
+        self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("tree"))
         self.iface.add_child( testwidg)
-        
-        stone = self.game.resource_types.find('wood').sprite
-        stone_sprite = interface.SpriteWidget(self.iface, (0, 0, 30, 30), stone)
-        self.iface.add_child( stone_sprite)
-        
 
+    def create_resource_dump(self, pos, resource):
+        storage = game.ResourcePile(self.game, (30,30), pos, 1)
+        storage.target_actions = storage.target_actions.union(('store'))
+        storage.set_storage(1, [resource['type']])
+        storage.res_storage.deposit( resource['type'], resource['qty'])
+        self.game.add_game_object(storage)
+        resource = self.game.resource_types.find(resource['type'])
+        widget = ResourcePileWidget(self.iface, storage, resource.sprite)
+        self.iface.add_child( widget)
+        
     def update(self):
         self.ticker += 1
         application.Activity.update(self)
