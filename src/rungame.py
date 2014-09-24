@@ -5,10 +5,11 @@ from pygame.locals import *
 #local imports
 import application
 import viewport
-import resourcemanager
+from src import assetmanager
 import game
 import interface
 import actor
+import resource
 
 class CivilisApp( application.Application):
     """Game specific Application class."""
@@ -22,16 +23,77 @@ class CivilisApp( application.Application):
 
 class ActorWidget( interface.SpriteWidget):
     
+    def __init__(self, manager, obj, img):
+        carry_rect = pygame.Rect(8,-30,30,30)
+        self.carry_widget = interface.SpriteWidget(manager, carry_rect, None)
+        
+        interface.SpriteWidget.__init__(self, manager, obj, img)
+        self.add_child(self.carry_widget)        
+    
     def _draw_self(self, viewport, disp_rect):
         load = self._game_object.carrying
         if load is not None:
             color = (load['qty']*200, 0, 0)
-            pygame.draw.rect( viewport.surface, color, disp_rect, 0)
+            #pygame.draw.rect( viewport.surface, color, disp_rect, 0)
+            img = self._game_object.game.resource_types.find(load['type']).sprite
+            self.carry_widget.img = img            
+        else:
+            self.carry_widget.img = None
         interface.SpriteWidget._draw_self(self, viewport, disp_rect)
 
             
-class WidgetActivity( application.Activity):
+class TestActivity( application.Activity):
     """Test activity for debugging."""
+    
+    def make_resource_tree(self):
+        base = resource.Prototype('resource')
+        abstract = resource.Prototype('abstract')
+        manufactured = resource.Prototype('manufactured')
+        gathered = resource.Prototype('gathered')
+        base.add_children( (abstract, manufactured, gathered))
+        
+        materials = resource.Prototype('materials')
+        food = resource.Prototype('food')
+        gathered.add_children( (materials, food))
+        
+        reeds = resource.Prototype('reeds')
+        metal = resource.Prototype('metal')
+        stone = resource.Prototype('stone', pygame.transform.smoothscale( self.assets.get('stone-icon'), (30,30)))
+        wood = resource.Prototype('wood', pygame.transform.smoothscale( self.assets.get('wood-icon'), (30,30)))
+        clay = resource.Prototype('clay')
+        materials.add_children( (reeds, metal, stone, wood, clay))
+        
+        meat = resource.Prototype('meat')
+        vegies = resource.Prototype('vegetables')
+        fish = resource.Prototype('fish')
+        food.add_children( (meat,vegies,fish))
+        
+        goods = resource.Prototype('goods')
+        weapons = resource.Prototype('weapons')
+        tools = resource.Prototype('tools')
+        manufactured.add_children( (goods, weapons, tools))
+        
+        nothing = resource.Prototype('nothing')
+        spirit = resource.Prototype('spirit')
+        abstract.add_children( (nothing, spirit))
+        
+        jewelry = resource.Prototype('jewelry')
+        hides = resource.Prototype('hides')
+        baskets = resource.Prototype('baskets')
+        goods.add_children( (jewelry, hides, baskets))
+        
+        stoneweapons = resource.Prototype('stone_weapons')
+        metalweapons = resource.Prototype('metal_weapons')
+        weapons.add_children( (stoneweapons, metalweapons))
+        
+        basic_tools = resource.Prototype('basic_tools')
+        metal_tools = resource.Prototype('metal_tools')
+        tools.add_children( (basic_tools, metal_tools))
+        
+        resource.show_tree( base)
+        
+        return base
+
     
     def on_create(self, config):
         application.Activity.on_create(self, config)
@@ -45,13 +107,15 @@ class WidgetActivity( application.Activity):
         self.ticker = 1
         self.options = 5
 
-        self.resources = resourcemanager.ResourceManager()
-        self.resources.load_set("res/resources.txt")
+        self.assets = assetmanager.AssetManager()
+        self.assets.load_set("res/assets.txt")
+        
+        self.game.resource_types = self.make_resource_tree()
         
         self.icons = []
         for i in xrange(8):
             tag = "ico" + str(i)
-            self.icons.append(pygame.transform.smoothscale( self.resources.get(tag), (40,40)))
+            self.icons.append(pygame.transform.smoothscale( self.assets.get(tag), (40,40)))
 
         #self.container2 = interface.DragPanel( self.iface, 
         #                    (400,10,375,200))
@@ -78,21 +142,21 @@ class WidgetActivity( application.Activity):
         testobj = actor.Actor(self.game, (-200, -200))
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = ActorWidget( self.iface, testobj, self.resources.get("person"))
+        testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
 
         #person2
         testobj = actor.Actor(self.game, (-100, -200))
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = ActorWidget( self.iface, testobj, self.resources.get("person"))
+        testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)        
         
         #person3
         testobj = actor.Actor(self.game, (-150, -200))
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = ActorWidget( self.iface, testobj, self.resources.get("person"))
+        testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)        
         
         #hut2
@@ -100,7 +164,7 @@ class WidgetActivity( application.Activity):
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
         testobj.set_storage(10, ('stone', 'wood'))        
         self.game.add_game_object(testobj)        
-        testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("hut"))
+        testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
         
         #hut
@@ -108,22 +172,26 @@ class WidgetActivity( application.Activity):
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
         testobj.set_storage(10, ('stone', 'wood'))        
         self.game.add_game_object(testobj)        
-        testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("hut"))
+        testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
         
         #rock
         testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
         testobj.target_actions = testobj.target_actions.union(['mine'])
         self.game.add_game_object(testobj)
-        testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("rock"))
+        testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("rock"))
         self.iface.add_child( testwidg)
         
         #trees
         testobj = game.StructureObject(self.game, (100,100), (200, 170), 2)
         testobj.target_actions = testobj.target_actions.union(['cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = interface.StructWidget( self.iface, testobj, self.resources.get("tree"))
+        testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("tree"))
         self.iface.add_child( testwidg)
+        
+        stone = self.game.resource_types.find('wood').sprite
+        stone_sprite = interface.SpriteWidget(self.iface, (0, 0, 30, 30), stone)
+        self.iface.add_child( stone_sprite)
         
 
     def update(self):
@@ -194,7 +262,7 @@ class WidgetActivity( application.Activity):
 def run():
 
     app = CivilisApp()
-    app.start_activity( WidgetActivity, None)
+    app.start_activity( TestActivity, None)
     
     while app.update():
         app.draw()

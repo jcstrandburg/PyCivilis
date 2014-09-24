@@ -21,3 +21,6 @@ image rock rocks.png
 image hut hut.png
 image snorgle snorgle.png
 image workspace campfire.png
+
+image stone-icon stone-res.png
+image wood-icon wood-res.png

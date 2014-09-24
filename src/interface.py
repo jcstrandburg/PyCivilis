@@ -415,7 +415,7 @@ class BaseWidget(WidgetBehavior):
         self._children.remove(widg)
         
     def translate_point(self, pos):
-        return Vec2d(pos) + self._space_rect.topleft
+        return vector.Vec2d(pos) + self._space_rect.topleft
         
     def translate_rect(self, rect):
         newrect = rect.move( self._space_rect.topleft)
@@ -435,7 +435,7 @@ class MapWidget(BaseWidget):
     def __init__(self, manager, game):
         BaseWidget.__init__(self, manager, (-360,-360,738,738), LAYER_BASE)
         self._selectable = False
-        self.img = manager.controller.resources.get("ground")
+        self.img = manager.controller.assets.get("ground")
         self.game = game
 
     def _draw_self(self, viewport, disp_rect):
@@ -702,21 +702,29 @@ class GameObjWidget(BaseWidget):
     get_disp_rect = BaseWidget._relative_get_disp_rect
     _update_handler = BaseWidget._opaque_update
     
-    def __init__(self, manager, obj, rect=None, layer=LAYER_GAME_FG):
-        if rect is None:
-            rect = obj.rect
-        self._game_object = obj            
+    def __init__(self, manager, obj_or_rect, rect=None, layer=LAYER_GAME_FG):
+        if isinstance(obj_or_rect, game.GameObject):
+            if rect is None:
+                rect = obj_or_rect.rect            
+            self._game_object = obj_or_rect
+            self._selectable = obj_or_rect.selectable            
+        else:
+            self._game_object = None
+            self._selectable = False
+            rect = obj_or_rect            
         BaseWidget.__init__(self,manager,rect,layer)
-        self._selectable = obj.selectable
+
 
     def update_rect(self):
-        self._space_rect = self.game_object.rect
+        if self._game_object is not None:
+            self._space_rect = self.game_object.rect
         self._children_update_rect()
         
     def _update_handler(self, viewport, mousepos):
-        if self._base_rect.midbottom != self._game_object.rect.midbottom:
-            self._base_rect.midbottom = self._game_object.rect.midbottom
-            self.update_rect()
+        if self._game_object is not None:
+            if self._base_rect.midbottom != self._game_object.rect.midbottom:
+                self._base_rect.midbottom = self._game_object.rect.midbottom
+                self.update_rect()
         BaseWidget._opaque_update(self, viewport, mousepos)
         
     def _draw_self(self, viewport, rect):
@@ -729,18 +737,21 @@ class GameObjWidget(BaseWidget):
         pygame.draw.rect(viewport.surface, color, rect, 2)
         
     def select(self):
-        BaseWidget.select(self)
-        self._game_object.select()
+        if self._selectable:
+            BaseWidget.select(self)
+            if self._game_object is not None:
+                self._game_object.select()
         
     def deselect(self):
         BaseWidget.deselect(self)
-        self._game_object.deselect()
+        if self._game_object is not None: 
+            self._game_object.deselect()
         
     def get_game_object(self):
         return self._game_object
         
     def _self_handle_event(self, event):
-        if self._mouseover and event.type == MOUSEBUTTONDOWN and event.button == 3:
+        if self._mouseover and event.type == MOUSEBUTTONDOWN and event.button == 3 and self._game_object is not None:
             game = self.manager.controller.game
             if game.selected_obj is not None and game.selected_obj != self.game_object:
                 builder = OrderMenuBuilder(self.game_object, game.selected_obj)
@@ -784,15 +795,19 @@ class SpriteWidget(GameObjWidget):
     handle_event = BaseWidget._standard_event_handler
     get_disp_rect = BaseWidget._relative_get_disp_rect
 
-    def __init__(self, manager, obj, img):
+    def __init__(self, manager, obj_or_rect, img):
         self.img = img
-        rect = self.img.get_rect()
+        if self.img is not None:
+            rect = self.img.get_rect()
+        else:
+            rect = None
     
-        GameObjWidget.__init__(self, manager, obj, rect, LAYER_GAME_FG)
+        GameObjWidget.__init__(self, manager, obj_or_rect, rect, LAYER_GAME_FG)
         
     def _draw_self(self, viewport, disp_rect):
-        img = viewport.transform.scale(self.img, viewport.scale)
-        viewport.surface.blit(img, disp_rect)
+        if self.img is not None:
+            img = viewport.transform.scale(self.img, viewport.scale)
+            viewport.surface.blit(img, disp_rect)
         
         if self._mouseover:
             pygame.draw.rect(viewport.surface, (255,255,0), disp_rect, 1)
@@ -812,7 +827,7 @@ class InvisWidget(BaseWidget):
 class WorkspaceWidget(GameObjWidget):
     def __init__(self, manager, obj, rect=None, layer=LAYER_GAME_FG):
         GameObjWidget.__init__(self, manager, obj, rect, layer)
-        self.img = manager.controller.resources.get("workspace")
+        self.img = manager.controller.assets.get("workspace")
 
     def _draw_self(self, viewport, disp_rect):
         img = viewport.transform.scale(self.img, viewport.scale)
