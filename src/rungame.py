@@ -1,4 +1,5 @@
 #global lib impports
+import copy
 import pygame
 from pygame.locals import *
 
@@ -40,6 +41,14 @@ class ActorWidget( interface.SpriteWidget):
         else:
             self.carry_widget.img = None
         interface.SpriteWidget._draw_self(self, viewport, disp_rect)
+
+class DictEvent(object):
+    '''This is a big ugly hack designed to force pygame events to have dictionaries so you can add new attributes to them.'''
+    def __init__(self, event):
+        slots = ('type', 'gain', 'state', 'unicode', 'key', 'mod', 'pos', 'rel', 'buttons', 'button', 'joy', 'axis', 'value', 'ball', 'hat', 'size', 'w', 'h', 'code')
+        for s in slots:
+            if hasattr(event, s):
+                self.__dict__[s] = getattr(event, s)
 
             
 class TestActivity( application.Activity):
@@ -140,6 +149,7 @@ class TestActivity( application.Activity):
         
         #person
         testobj = actor.Actor(self.game, (-200, -200))
+        print testobj.__dict__
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
@@ -221,9 +231,11 @@ class TestActivity( application.Activity):
         self.iface.draw( self.vp)
 
     def handle_event(self, event):
+        event = DictEvent(event)
+
         if hasattr( event, 'pos'):
-            event.gamepos = self.vp.translate_point(event.pos, 
-                                                    viewport.SCREEN_TO_GAME)
+            gamepos = self.vp.translate_point(event.pos, viewport.SCREEN_TO_GAME)
+            event.gamepos = gamepos
                                                     
         if hasattr( event, 'rel'):
             event.rel_motion = (round(event.rel[0]/self.vp.scale),
