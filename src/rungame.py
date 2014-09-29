@@ -25,7 +25,7 @@ class CivilisApp( application.Application):
 class ActorWidget( interface.SpriteWidget):
     
     def __init__(self, manager, obj, img):
-        carry_rect = pygame.Rect(8,-30,30,30)
+        carry_rect = pygame.Rect(8,20,30,30)
         self.carry_widget = interface.SpriteWidget(manager, carry_rect, None)
         
         interface.SpriteWidget.__init__(self, manager, obj, img)
@@ -48,15 +48,16 @@ class ResourcePileWidget( interface.SpriteWidget):
         bar_rect = disp_rect.copy()
         bar_rect.h = 5
         bar_rect.bottom = disp_rect.bottom
-        bar_rect.w = int(bar_rect.w * (1.0-self._game_object.res_storage.get_capacity(None)))
+        rstore = self._game_object.res_storage
+        bar_rect.w = int(bar_rect.w * (rstore.get_contents(None)/rstore.capacity))
         bar_rect.w = max(1, bar_rect.w)
         pygame.draw.rect(viewport.surface, (255,0,0), bar_rect, 0)
 
     def get_selection_menu(self):
         panel = interface.Panel(self.manager, (0,0,200,600))
-        headline = interface.CompositeTextGenerator( (interface.StaticText("Available: "), interface.LambdaTextGenerator(lambda: self._game_object.get_capacity(None))))
+        headline = interface.CompositeTextGenerator( (interface.StaticText("Available: "), interface.LambdaTextGenerator(lambda: self._game_object.get_available_space(None))))
         text = interface.TextLabel(self.manager, (30, 30), 'medfont', headline)
-        panel.add_child( text)        
+        panel.add_child( text)
         
         store = self._game_object.res_storage
         if store is not None:
@@ -153,24 +154,6 @@ class TestActivity( application.Activity):
             tag = "ico" + str(i)
             self.icons.append(pygame.transform.smoothscale( self.assets.get(tag), (40,40)))
 
-        #self.container2 = interface.DragPanel( self.iface, 
-        #                    (400,10,375,200))
-        #self.testa = interface.TestWidget( self.iface, (25,50,100,30))
-        #self.testb = interface.TestWidget( self.iface, (25,100,100,30))
-        #self.testc = interface.TestWidget( self.iface, (25,150,100,30))
-        
-        text = interface.StaticText("Lorem ipsum delores")
-        basetext = interface.StaticText("Options: ")
-        optionstext = interface.LambdaTextGenerator( lambda: self.options)
-
-        #self.text3 = interface.TextLabel( self.iface, (135,150), "bigfont", text)
-        
-        #self.container2.add_child( self.testa)
-        #self.container2.add_child( self.testb)
-        #self.container2.add_child( self.testc)
-        #self.container2.add_child( self.text3)
-        #self.iface.add_child( self.container2)
-
         self.map = interface.MapWidget(self.iface, self.game)
         self.iface.add_child(self.map)
         
@@ -194,20 +177,20 @@ class TestActivity( application.Activity):
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
-        self.iface.add_child( testwidg)        
+        self.iface.add_child( testwidg)
         
         #hut2
         testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(2, ('stone', 'wood'))        
-        #self.game.add_game_object(testobj)        
+        testobj.set_storage(10, ('stone', 'wood'))        
+        self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
-        #self.iface.add_child( testwidg)
+        self.iface.add_child( testwidg)
         
         #hut
         testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-#        testobj.set_storage(2, ('stone', 'wood'))        
+        testobj.set_storage(2, ('stone', 'wood'))
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
@@ -215,6 +198,7 @@ class TestActivity( application.Activity):
         #rock
         testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
         testobj.target_actions = testobj.target_actions.union(['mine'])
+        testobj.set_reservoir(7, 'stone', 0.0035)
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("rock"))
         self.iface.add_child( testwidg)
@@ -222,6 +206,7 @@ class TestActivity( application.Activity):
         #trees
         testobj = game.StructureObject(self.game, (100,100), (200, 170), 2)
         testobj.target_actions = testobj.target_actions.union(['cut-wood'])
+        testobj.set_reservoir(5, 'wood', 0.005)       
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("tree"))
         self.iface.add_child( testwidg)
@@ -230,7 +215,7 @@ class TestActivity( application.Activity):
         storage = game.ResourcePile(self.game, (30,30), pos, 1)
         storage.target_actions = storage.target_actions.union(('store'))
         storage.set_storage(1, [resource['type']])
-        storage.res_storage.deposit( resource['type'], resource['qty'])
+        storage.res_storage.deposit( resource)
         self.game.add_game_object(storage)
         resource = self.game.resource_types.find(resource['type'])
         widget = ResourcePileWidget(self.iface, storage, resource.sprite)
@@ -290,18 +275,6 @@ class TestActivity( application.Activity):
                 self.options = min(self.options+1, 8)
             elif event.key == K_ESCAPE:
                 self.finish()
-            elif event.key == K_z:
-                x = self.game.selected_obj
-                if hasattr(x, "res_storage"):
-                    x.res_storage.deposit( 'wood', 1)
-                else:
-                    print "I can't find it"
-            elif event.key == K_x:
-                x = self.game.selected_obj
-                if hasattr(x, "res_storage"):
-                    x.res_storage.deposit( 'stone', 1)
-                else:
-                    print "I can't find it"
                 
 def run():
 

@@ -10,7 +10,7 @@ class Application(object):
     def __init__(self):
         #fps tracking
         self.fps = 0
-        self.fps_bias = .7
+        self.fps_bias = .9
         self.set_fps_cap( 50)
         
         #activity stack initialization
@@ -27,7 +27,8 @@ class Application(object):
         print "Finished pygame setup"
 
     def set_fps_cap(self, cap):
-        """Sets the maximum framerate (and logic frame time)"""    
+        """Sets the maximum framerate (and logic frame time)"""
+        self.fps = cap    
         self._max_fps = cap
         self._time_stored = 0.0
         self._logic_frame_time = 1000.0/cap
@@ -87,11 +88,12 @@ class Application(object):
         self.fps = self.fps * self.fps_bias + self.clock.get_fps()*(1-self.fps_bias)
         
         if self.fps != float("inf"):
-            pygame.display.set_caption( str(round(self.fps))) #this seems to cause a memory leak or something, causing the game to hange on pygame.quit
+            pygame.display.set_caption( str(round(self.fps))) #this seems to cause a memory leak or something, causing the game to hang on pygame.quit
             
         #if the stack activity isn't empty
         if top is not None:
 
+            #force the top activity to resume and do an update
             top.resume()            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -99,7 +101,6 @@ class Application(object):
                 else:
                     top.handle_event( event)
         
-            #force the top activity to resume and do an update
             while self._time_stored > self._logic_frame_time:
                 self._time_stored -= self._logic_frame_time
                 top.update()

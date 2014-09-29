@@ -645,7 +645,7 @@ class RadialContextMenu(BaseWidget):
                                 int(self._radius*viewport.scale), 3)
         
     def translate_point(self, pos):
-        return Vec2d(pos) + self._space_rect.center
+        return vector.Vec2d(pos) + self._space_rect.center
         
     def translate_rect(self, rect):
         return rect.move( self._space_rect.center)
@@ -865,16 +865,29 @@ class StructWidget(SpriteWidget):
         
     def get_selection_menu(self):
         panel = Panel(self.manager, (0,0,200,600))
-        headline = CompositeTextGenerator( (StaticText("Available: "), LambdaTextGenerator(lambda: self._game_object.get_capacity(None))))
+        headline = CompositeTextGenerator( (StaticText("Available: "), LambdaTextGenerator(lambda: self._game_object.get_available_space(None))))
         text = TextLabel(self.manager, (30, 30), 'medfont', headline)
-        panel.add_child( text)        
+        panel.add_child( text)
+        offset = 1
         
         store = self._game_object.res_storage
         if store is not None:
-            offset = 1
             for key in store.accepts:
-                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key), LambdaTextGenerator(lambda bound_key=key: store.get_contents(bound_key))]))
+                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key+': '), LambdaTextGenerator(lambda bound_key=key: store.get_contents(bound_key))]))
                 panel.add_child( text)
                 offset += 1
 
+        reservoir = self._game_object.res_reservoir
+        if reservoir is not None:
+            tag = reservoir.resource_type                
+            text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(tag+': '), LambdaTextGenerator(lambda bound_tag=tag: reservoir.get_contents(tag))]))
+            panel.add_child( text)
+            offset += 1
+            text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText('Available: '), LambdaTextGenerator(lambda bound_tag=tag: reservoir.get_available_contents(tag))]))
+            panel.add_child( text)
+            offset += 1
+            text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', LambdaTextGenerator(lambda: reservoir.debug_string))
+            panel.add_child( text)
+            offset += 1            
+                
         return panel
