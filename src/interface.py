@@ -341,12 +341,10 @@ class BaseWidget(WidgetBehavior):
     def select(self):
         self.selected = True
         sel_menu = self.get_selection_menu()
-        print "Setting selection menu to something"        
         self.manager.set_selection_menu( sel_menu)
     
     def deselect(self):
         self.selected = False
-        print "Setting selection menu to none"
         self.manager.set_selection_menu( None)
 
     def handle_event(self, event):
@@ -872,22 +870,16 @@ class StructWidget(SpriteWidget):
         
         store = self._game_object.res_storage
         if store is not None:
-            for key in store.accepts:
-                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key+': '), LambdaTextGenerator(lambda bound_key=key: store.get_contents(bound_key))]))
+            for key in store._accepts:
+                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key+': '), LambdaTextGenerator(lambda bound_key=key: store.get_actual_contents(bound_key))]))
                 panel.add_child( text)
                 offset += 1
 
         reservoir = self._game_object.res_reservoir
         if reservoir is not None:
-            tag = reservoir.resource_type                
-            text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(tag+': '), LambdaTextGenerator(lambda bound_tag=tag: reservoir.get_contents(tag))]))
-            panel.add_child( text)
-            offset += 1
-            text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText('Available: '), LambdaTextGenerator(lambda bound_tag=tag: reservoir.get_available_contents(tag))]))
-            panel.add_child( text)
-            offset += 1
-            text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', LambdaTextGenerator(lambda: reservoir.debug_string))
-            panel.add_child( text)
-            offset += 1            
+            for key in reservoir._accepts:
+                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key+': '), LambdaTextGenerator(lambda bound_key=key: reservoir.get_actual_contents(bound_key))]))
+                panel.add_child( text)
+                offset += 1
                 
         return panel

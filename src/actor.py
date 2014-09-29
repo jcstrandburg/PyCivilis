@@ -99,10 +99,10 @@ class ForageTask(Task):
         
     def do_step(self):
         actor = self.actor
-        self._progress += 0.02
+        self._progress += 0.5
         if self._progress >= 1.0:
             reservoir = actor.target_workspace.struct.res_reservoir
-            actor.carrying = reservoir.withdraw(reservoir.resource_type, 1)
+            actor.carrying = reservoir.withdraw(self.order.resource_type, 1)
             actor.target_workspace.release()
             actor.forage_reservation.release()
             actor.forage_reservation = None            
@@ -123,11 +123,13 @@ class DumpTask(Task):
         deposited = False
         actor = self.actor
         if actor.storage_reservation is not None:
+            print "I have a valid storage reservation"
             actor.storage_reservation.release()            
             deposited = actor.storage_reservation.structure.res_storage.deposit( actor.carrying)
             actor.storage_reservation = None
     
         if not deposited:
+            print "I couldn't deposit for some reason"
             self.actor.game.controller.create_resource_dump(self.actor.position, self.actor.carrying)
 
         actor.carrying = None
@@ -169,7 +171,7 @@ class ReserveForageTask(Task):
     def __init__(self, order, actor, structure):
         Task.__init__(self, order, actor)
         self._structure = structure
-        self._reservation = self._structure.res_reservoir.reserve()
+        self._reservation = self._structure.res_reservoir.reserve_resources(order.resource_type, 1)
         if self._reservation is None:
             self.order.seek_new_reservoir()
             self.cancel()
@@ -240,10 +242,11 @@ class MoveOrder(Order):
         
 class ForageOrder(Order): 
 
-    def __init__(self, actor, game, target):
+    def __init__(self, actor, game, target, resource_type):
         Order.__init__(self, actor, game)
         self._task_state = self._state_reserve_forage
         self._target = target
+        self.resource_type = resource_type
         
     def _state_reserve_forage(self):
         self._task_state = self._state_seek_forage_location
@@ -323,5 +326,7 @@ class OrderBuilder(object):
         return self.target.target_actions.intersection( self.selected.abilities)    
         
     def do_order(self, tag):
-        if tag == "mine" or tag == "cut-wood":
-            self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target))
+        if tag == "mine":
+            self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target, 'stone'))
+        elif tag == "cut-wood":
+            self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target, 'wood'))

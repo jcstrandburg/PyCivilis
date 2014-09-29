@@ -46,18 +46,18 @@ class Game(object):
             
     """Game specific code"""
     
-    def reserve_storage(self, position, carrying):
+    def reserve_storage(self, position, resource):
         candidates = []
         for x in xrange(len(self._objects)):
             obj = self._objects[x]
             if hasattr(obj, "get_available_space"):
-                if obj.get_available_space(carrying['type']) >= carrying['qty']:
+                if obj.get_available_space(resource['type']) >= resource['qty']:
                     candidates.append( obj)
 
         candidates.sort(key=lambda candidate: (candidate.position-position).get_length())
                     
         if ( len(candidates) > 0):
-            return candidates[0].reserve_storage(carrying['type'], carrying['qty'])
+            return candidates[0].res_storage.reserve_storage(resource['type'], resource['qty'])
         return None
 
     
@@ -201,9 +201,11 @@ class WorkspaceReservation(Reservation):
             self.workspace.release()
 
 class ResourceReservation(Reservation):
-    def __init__(self, structure):
+    def __init__(self, structure, tag=None, qty=0):
         Reservation.__init__(self)
         self.structure = structure
+        self.tag = tag
+        self.qty = qty
         
     def make_ready(self):
         Reservation.make_ready(self)
@@ -231,7 +233,6 @@ class ResourceReservoir(object):
             res.make_ready()
             
         return res
-       
         
     def update(self):
         for r in self.reservations:
@@ -248,7 +249,7 @@ class ResourceReservoir(object):
             
         self.debug_string = str(len(self.reservations)) +":" + str(len(pending_res))
 
-    def get_contents(self, tag):
+    def get_actual_contents(self, tag):
         if self.resource_type == tag:
             return self.quantity
         else:
@@ -343,7 +344,146 @@ class ResourceStorage(object):
             self.contents[tag] -= amount
         except KeyError:
             return 0
+
+class ResourceStore(object):
+
+    def __init__(self, structure, capacity, accept_list, allow_store=True, allow_forage=True):
+        self._storage_reservations = []
+        self._resource_reservations = []
+        self._accepts = list(accept_list)
+        self._capacity = capacity
+        self.contents = {}
+        self.structure = structure
+        self.allow_store = allow_store
+        self.allow_forage = allow_forage
+
+        self.debug_string = 'hey hey hey'
+
+    def withdraw(self, tag, amount):
+        try:
+            qty = min(self.contents[tag], amount)
+            if (qty > 0):
+                self.contents[tag] -= amount
+                return {'type':tag, 'qty': qty}
+            else:
+                return None
+        except KeyError:
+            return None
+
+    def force_deposit(self, resource):
+        try:
+            self.contents[resource['type']] += resource['qty']
+        except KeyError:
+            self.contents[resource['type']] = resource['qty']
+                
+        return True        
+
+    def deposit(self, resource):
+        if self.get_actual_space(resource['type']) < resource['qty']:
+            return False
+                    
+        try:
+            self.contents[resource['type']] += resource['qty']
+        except KeyError:
+            if resource['type'] in self._accepts:
+                self.contents[resource['type']] = resource['qty']
+                
+        return True
+
+    def reserve_storage(self, tag, amount):
+        cap = self.get_available_space(tag)
+        if cap >= amount:
+            res = ResourceReservation(self.structure, tag, amount)
+            res.make_ready()
+            self._storage_reservations.append(res)
+            return res
+        else:
+            return None
+
+    def reserve_resources(self, tag, amount):
+        if tag is None:
+            tag = self.resource_type
             
+        qty = self.get_available_contents(tag)
+        res = ResourceReservation(self.structure)
+        self._resource_reservations.append(res)
+        
+        if qty >= amount:
+            res.make_ready()
+            
+        return res
+
+    def get_actual_contents(self, tag=None):
+        if tag is None:
+            content = 0
+            for key in self.contents:
+                content += self.contents[key]
+            return content
+        else:
+            try:
+                return self.contents[tag]
+            except KeyError:
+                return 0
+
+    '''Returns the contents that are not accounted for by a 'ready' reservation. These contents may be reserved but no reservation has yet been activated for them'''
+    def get_unclaimed_contents(self, tag=None):
+        content = self.get_actual_contents(tag)
+        for res in self._resource_reservations:
+            if (res.tag == tag or tag == None) and res.ready:
+                content -= res.qty
+        return content        
+
+    '''Returns the contents that are not accounted for by any reservation, ready or otherwise'''
+    def get_available_contents(self, tag=None):
+        content = self.get_actual_contents(tag)
+        for res in self._resource_reservations:
+            if (res.tag == tag or tag == None):
+                content -= res.qty
+        return content
+
+    def get_actual_space(self, tag):
+        if tag is None or tag in self._accepts:
+            cap = self._capacity
+            for key in self.contents:
+                cap -= self.contents[key]
+            return cap
+        else:
+            return 0
+
+    def get_available_space(self, tag):
+        space = self.get_actual_space(tag)
+        for res in self._storage_reservations:
+            space -= 1
+        return space
+
+    def get_capacity(self):
+        return self._capacity
+
+    def do_decay(self):
+        for key in self.contents:
+            self.contents[key] = max(self.contents[key]-.01, 0)
+
+    def update(self):
+        for r in self._storage_reservations:
+            r.update()
+
+        self._storage_reservations[:] = [r for r in self._storage_reservations if r.valid]          
+
+        for r in self._resource_reservations:
+            r.update()
+        self._resource_reservations[:] = [r for r in self._resource_reservations if r.valid]
+        
+        pending_res = [r for r in self._resource_reservations if not r.ready]
+        for pres in pending_res:
+            qty = self.get_unclaimed_contents(pres.tag)
+            if qty > pres.qty:
+                pres.make_ready()
+            
+        self.debug_string = 'yoyoyo'
+
+        #this junk needs to be updated
+        '''self.quantity += self.regen_rate
+        self.quantity = min( self.quantity, self.capacity)'''
         
                 
 class StructureObject(GameObject):
@@ -368,10 +508,11 @@ class StructureObject(GameObject):
             self.workspaces.append( workspace)
             
     def set_storage(self, cap, accepts):
-        self.res_storage = ResourceStorage(self, cap, accepts)
+        self.res_storage = ResourceStore(self, cap, accepts)
 
     def set_reservoir(self, qty, res_type, regen_rate):
-        self.res_reservoir = ResourceReservoir(self, qty, res_type, regen_rate)
+        self.res_reservoir = ResourceStore(self, qty, [res_type])
+        self.res_reservoir.deposit( {'type':res_type, 'qty':qty})
         
     def update(self):
         GameObject.update(self)
@@ -428,5 +569,5 @@ class ResourcePile(StructureObject):
     def update(self):
         StructureObject.update(self)
         self.res_storage.do_decay()
-        if self.res_storage.get_contents(None) == 0:
+        if self.res_storage.get_actual_contents(None) == 0:
             self.finished = True

@@ -42,6 +42,10 @@ class ActorWidget( interface.SpriteWidget):
             self.carry_widget.img = None
         interface.SpriteWidget._draw_self(self, viewport, disp_rect)
 
+    def get_selection_menu(self):
+        print 'Carrying: '+str(self._game_object.carrying)
+        return None
+
 class ResourcePileWidget( interface.SpriteWidget):
     def _draw_self(self, viewport, disp_rect):
         interface.SpriteWidget._draw_self(self, viewport, disp_rect)
@@ -49,7 +53,7 @@ class ResourcePileWidget( interface.SpriteWidget):
         bar_rect.h = 5
         bar_rect.bottom = disp_rect.bottom
         rstore = self._game_object.res_storage
-        bar_rect.w = int(bar_rect.w * (rstore.get_contents(None)/rstore.capacity))
+        bar_rect.w = int(bar_rect.w * (rstore.get_actual_contents(None)/rstore.get_capacity()))
         bar_rect.w = max(1, bar_rect.w)
         pygame.draw.rect(viewport.surface, (255,0,0), bar_rect, 0)
 
@@ -62,8 +66,8 @@ class ResourcePileWidget( interface.SpriteWidget):
         store = self._game_object.res_storage
         if store is not None:
             offset = 1
-            for key in store.accepts:
-                text = interface.TextLabel(self.manager, (30, 30+offset*30), 'medfont', interface.CompositeTextGenerator([interface.StaticText(key), interface.LambdaTextGenerator(lambda bound_key=key: store.get_contents(bound_key))]))
+            for key in store._accepts:
+                text = interface.TextLabel(self.manager, (30, 30+offset*30), 'medfont', interface.CompositeTextGenerator([interface.StaticText(key), interface.LambdaTextGenerator(lambda bound_key=key: store.get_actual_contents(bound_key))]))
                 panel.add_child( text)
                 offset += 1
 
@@ -126,7 +130,7 @@ class TestActivity( application.Activity):
         metal_tools = resource.Prototype('metal_tools')
         tools.add_children( (basic_tools, metal_tools))
         
-        resource.show_tree( base)
+        #resource.show_tree( base)
         
         return base
 
@@ -159,7 +163,6 @@ class TestActivity( application.Activity):
         
         #person
         testobj = actor.Actor(self.game, (-200, -200))
-        print testobj.__dict__
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
@@ -182,7 +185,7 @@ class TestActivity( application.Activity):
         #hut2
         testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(10, ('stone', 'wood'))        
+        testobj.set_storage(0, ('stone', 'wood'))        
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
@@ -190,7 +193,7 @@ class TestActivity( application.Activity):
         #hut
         testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(2, ('stone', 'wood'))
+        testobj.set_storage(0, ('stone', 'wood'))
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
@@ -198,7 +201,7 @@ class TestActivity( application.Activity):
         #rock
         testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
         testobj.target_actions = testobj.target_actions.union(['mine'])
-        testobj.set_reservoir(7, 'stone', 0.0035)
+        testobj.set_reservoir(float('inf'), 'stone', 0.0035)
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("rock"))
         self.iface.add_child( testwidg)
@@ -214,8 +217,9 @@ class TestActivity( application.Activity):
     def create_resource_dump(self, pos, resource):
         storage = game.ResourcePile(self.game, (30,30), pos, 1)
         storage.target_actions = storage.target_actions.union(('store'))
-        storage.set_storage(1, [resource['type']])
+        storage.set_storage(resource['qty'], [resource['type']])
         storage.res_storage.deposit( resource)
+        storage.res_storage.allow_store = False
         self.game.add_game_object(storage)
         resource = self.game.resource_types.find(resource['type'])
         widget = ResourcePileWidget(self.iface, storage, resource.sprite)
