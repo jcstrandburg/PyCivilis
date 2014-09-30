@@ -18,13 +18,11 @@ class Application(object):
         self._pending = [] #list of activities waiting to be added to the stack        
 
         #pygame setup
-        print "Performing pygame setup"
         pygame.init()
         self.clock = pygame.time.Clock()
         self.clock.tick()        
         self.screen = pygame.display.set_mode((800, 600))
         pygame.mixer.init()        
-        print "Finished pygame setup"
 
     def set_fps_cap(self, cap):
         """Sets the maximum framerate (and logic frame time)"""

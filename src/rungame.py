@@ -48,7 +48,6 @@ class ActorWidget( interface.SpriteWidget):
 
 class ResourcePileWidget( interface.SpriteWidget):
     def _draw_self(self, viewport, disp_rect):
-        print disp_rect
         interface.SpriteWidget._draw_self(self, viewport, disp_rect)
         bar_rect = disp_rect.copy()
         bar_rect.h = 5
@@ -131,8 +130,6 @@ class TestActivity( application.Activity):
         metal_tools = resource.Prototype('metal_tools')
         tools.add_children( (basic_tools, metal_tools))
         
-        #resource.show_tree( base)
-        
         return base
 
     
@@ -163,7 +160,7 @@ class TestActivity( application.Activity):
         self.iface.add_child(self.map)
         
         #person
-        testobj = actor.Actor(self.game, (-200, -200))
+        testobj = actor.Actor(self.game, (-200, 0))
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
@@ -174,7 +171,7 @@ class TestActivity( application.Activity):
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
-        self.iface.add_child( testwidg)        
+        self.iface.add_child( testwidg)
         
         #person3
         testobj = actor.Actor(self.game, (-150, -200))
@@ -202,7 +199,7 @@ class TestActivity( application.Activity):
         #rock
         testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
         testobj.target_actions = testobj.target_actions.union(['mine'])
-        testobj.set_reservoir(float('inf'), 'stone', 0.0035)
+        testobj.set_reservoir(1000, 'stone', 0)
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("rock"))
         self.iface.add_child( testwidg)
@@ -220,7 +217,7 @@ class TestActivity( application.Activity):
         storage.target_actions = storage.target_actions.union(('store'))
         storage.set_storage(resource['qty'], [resource['type']])
         storage.res_storage.deposit( resource)
-        storage.res_storage.allow_store = False
+        storage.res_storage.set_delta(resource['type'], -.001)
         self.game.add_game_object(storage)
         resource = self.game.resource_types.find(resource['type'])
         widget = ResourcePileWidget(self.iface, storage, resource.sprite)
@@ -281,10 +278,11 @@ class TestActivity( application.Activity):
             elif event.key == K_ESCAPE:
                 self.finish()
                 
+                
 def run():
 
     app = CivilisApp()
-    app.start_activity( TestActivity, None)
+    app.start_activity(TestActivity, None)
     
     while app.update():
         app.draw()

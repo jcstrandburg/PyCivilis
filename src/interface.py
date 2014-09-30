@@ -44,18 +44,11 @@ class InterfaceManager( object):
         """Updates all child objects with the current mouse position etc..."""
         
         if len(self._new_children) > 0:
-            print "Extending new children on interface"
             self._children.extend(self._new_children)
             self._new_children[:] = []
         
         #remove "finished" objects
-        i, j = 0, 0
-        while j < len(self._children):
-            if not self._children[j].finished:
-                self._children[i] = self._children[j]
-                i+=1        
-            j += 1        
-        del self._children[i:]
+        self._children[:] = [child for child in self._children if not child.finished]
         
         if self._context_menu is not None:
             if self._context_menu.finished:
@@ -406,7 +399,6 @@ class BaseWidget(WidgetBehavior):
     def update(self, viewport, mousepos):
         
         if len(self._new_children) > 0:
-            print "Adding new children"
             self._children.extend(self._new_children)
             self._new_children[:] = []
         
@@ -420,7 +412,7 @@ class BaseWidget(WidgetBehavior):
         
     def add_child(self, widg):
         widg.set_parent( self)
-        self._children.append(widg)
+        self._new_children.append(widg)
         
     def remove_child(self, widg):
         self._children.remove(widg)
@@ -716,7 +708,9 @@ class GameObjWidget(BaseWidget):
     def __init__(self, manager, obj_or_rect, rect=None, layer=LAYER_GAME_FG):
         if isinstance(obj_or_rect, game.GameObject):
             if rect is None:
-                rect = obj_or_rect.rect            
+                rect = obj_or_rect.rect
+            else:
+                rect.center = obj_or_rect.rect.center
             self._game_object = obj_or_rect
             self._selectable = obj_or_rect.selectable            
         else:
