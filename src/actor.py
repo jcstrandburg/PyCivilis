@@ -123,13 +123,11 @@ class DumpTask(Task):
         deposited = False
         actor = self.actor
         if actor.storage_reservation is not None:
-            print "I have a valid storage reservation"
             actor.storage_reservation.release()            
             deposited = actor.storage_reservation.structure.res_storage.deposit( actor.carrying)
             actor.storage_reservation = None
     
         if not deposited:
-            print "I couldn't deposit for some reason"
             self.actor.game.controller.create_resource_dump(self.actor.position, self.actor.carrying)
 
         actor.carrying = None

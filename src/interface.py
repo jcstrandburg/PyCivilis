@@ -28,6 +28,7 @@ class InterfaceManager( object):
         """"Initialize the InterfaceManager"""
         self._selected_obj = None
         self._children = []
+        self._new_children = []
         self.controller = controller
         self._context_menu = None
         self._selection_menu = None
@@ -41,6 +42,11 @@ class InterfaceManager( object):
     
     def update(self, viewport):
         """Updates all child objects with the current mouse position etc..."""
+        
+        if len(self._new_children) > 0:
+            print "Extending new children on interface"
+            self._children.extend(self._new_children)
+            self._new_children[:] = []
         
         #remove "finished" objects
         i, j = 0, 0
@@ -84,7 +90,7 @@ class InterfaceManager( object):
             self.add_child( smenu)
         
     def add_child(self, widget):
-        self._children.append(widget)
+        self._new_children.append(widget)
         
     def remove_child(self, widget):
         self._children.remove(widget)
@@ -331,6 +337,7 @@ class BaseWidget(WidgetBehavior):
         self._lclick_action = None
         self._rclick_action = None
         self._children = []
+        self._new_children = []
         self.clamp = False
         self.update_rect()
 
@@ -397,6 +404,12 @@ class BaseWidget(WidgetBehavior):
             c.alt_draw(viewport)
             
     def update(self, viewport, mousepos):
+        
+        if len(self._new_children) > 0:
+            print "Adding new children"
+            self._children.extend(self._new_children)
+            self._new_children[:] = []
+        
         self._disp_rect = self.get_disp_rect(viewport)
         self._update_handler(viewport, mousepos)
         for c in self._children:

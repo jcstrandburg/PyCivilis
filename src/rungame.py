@@ -48,6 +48,7 @@ class ActorWidget( interface.SpriteWidget):
 
 class ResourcePileWidget( interface.SpriteWidget):
     def _draw_self(self, viewport, disp_rect):
+        print disp_rect
         interface.SpriteWidget._draw_self(self, viewport, disp_rect)
         bar_rect = disp_rect.copy()
         bar_rect.h = 5
@@ -99,7 +100,7 @@ class TestActivity( application.Activity):
         reeds = resource.Prototype('reeds')
         metal = resource.Prototype('metal')
         stone = resource.Prototype('stone', pygame.transform.smoothscale( self.assets.get('stone-icon'), (30,30)))
-        wood = resource.Prototype('wood', pygame.transform.smoothscale( self.assets.get('wood-icon'), (30,30)))
+        wood = resource.Prototype('wood', pygame.transform.smoothscale( self.assets.get('tool-icon'), (30,30)))
         clay = resource.Prototype('clay')
         materials.add_children( (reeds, metal, stone, wood, clay))
         
