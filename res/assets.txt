@@ -25,3 +25,4 @@ image workspace campfire.png
 image stone-icon stone-res.png
 image wood-icon wood-res.png
 image tool-icon tool-res.png
+image meat-icon meat-res.png

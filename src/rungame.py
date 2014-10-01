@@ -6,7 +6,8 @@ from pygame.locals import *
 #local imports
 import application
 import viewport
-from src import assetmanager
+import vector
+import assetmanager
 import game
 import interface
 import actor
@@ -25,7 +26,7 @@ class CivilisApp( application.Application):
 class ActorWidget( interface.SpriteWidget):
     
     def __init__(self, manager, obj, img):
-        carry_rect = pygame.Rect(8,20,30,30)
+        carry_rect = pygame.Rect(8,40,30,30)
         self.carry_widget = interface.SpriteWidget(manager, carry_rect, None)
         
         interface.SpriteWidget.__init__(self, manager, obj, img)
@@ -45,6 +46,44 @@ class ActorWidget( interface.SpriteWidget):
     def get_selection_menu(self):
         print 'Carrying: '+str(self._game_object.carrying)
         return None
+
+class HerdWidget(interface.SpriteWidget):
+    def __init__(self, manager, gameobj, sprite, meatsicle_sprite):
+        interface.SpriteWidget.__init__(self, manager, gameobj, sprite)
+        self.meatsicles = []
+        for i in xrange(3):
+            rect = pygame.Rect(0,0,30,30)
+            rect.center = ((i+1)*50, 0)
+            meatsicle = interface.SpriteWidget(manager, rect, meatsicle_sprite)
+            self.add_child(meatsicle)
+            self.meatsicles.append(meatsicle)
+            
+    def update(self, viewport, mpos):
+        interface.SpriteWidget.update(self, viewport, mpos)
+        for i in xrange(len(self.meatsicles)):
+            ms = self.meatsicles[i]
+            pos = self.game_object._render_state['movement']*((i+1)*5)
+            ms._space_rect.center = pos
+            ms.update_rect()
+    
+class HerdObject(game.GameObject):
+    def __init__(self, gamemgr, position):
+        game.GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), position)
+        self.dir = 1
+        self._render_state['movement'] = vector.Vec2d(0,0)
+        
+    def update(self):
+        game.GameObject.update(self)
+        
+        if self.position[0] > 100:
+            self.dir = -1
+        elif self.position[0] < -100:
+            self.dir = 1
+
+        move_vec = vector.Vec2d(self.dir*3,self.dir*4)
+        self._render_state['movement'] = move_vec
+        self.position += move_vec
+    
 
 class ResourcePileWidget( interface.SpriteWidget):
     def _draw_self(self, viewport, disp_rect):
@@ -99,11 +138,11 @@ class TestActivity( application.Activity):
         reeds = resource.Prototype('reeds')
         metal = resource.Prototype('metal')
         stone = resource.Prototype('stone', pygame.transform.smoothscale( self.assets.get('stone-icon'), (30,30)))
-        wood = resource.Prototype('wood', pygame.transform.smoothscale( self.assets.get('tool-icon'), (30,30)))
+        wood = resource.Prototype('wood', pygame.transform.smoothscale( self.assets.get('wood-icon'), (30,30)))
         clay = resource.Prototype('clay')
         materials.add_children( (reeds, metal, stone, wood, clay))
         
-        meat = resource.Prototype('meat')
+        meat = resource.Prototype('meat', pygame.transform.smoothscale( self.assets.get('meat-icon'), (30,30)))
         vegies = resource.Prototype('vegetables')
         fish = resource.Prototype('fish')
         food.add_children( (meat,vegies,fish))
@@ -161,29 +200,36 @@ class TestActivity( application.Activity):
         
         #person
         testobj = actor.Actor(self.game, (-200, 0))
-        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
 
         #person2
         testobj = actor.Actor(self.game, (-100, -200))
-        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
         
         #person3
         testobj = actor.Actor(self.game, (-150, -200))
-        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'mine', 'cut-wood'])
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
         testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
+        self.iface.add_child( testwidg)
+        
+        #snorgle
+        testobj = HerdObject(self.game, (-150, -150))
+        testobj.target_actions = testobj.target_actions.union(['hunt', 'domesticate'])        
+        self.game.add_game_object( testobj)
+        testwidg = HerdWidget(self.iface, testobj, self.assets.get('snorgle'), pygame.transform.smoothscale( self.assets.get('meat-icon'), (30,30)))
         self.iface.add_child( testwidg)
         
         #hut2
         testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(0, ('stone', 'wood'))        
+        testobj.set_storage(10, ('stone', 'wood'))        
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
@@ -191,7 +237,7 @@ class TestActivity( application.Activity):
         #hut
         testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(0, ('stone', 'wood'))
+        testobj.set_storage(5, ('stone', 'wood'))
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)

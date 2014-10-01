@@ -52,8 +52,8 @@ class Game(object):
         candidates = []
         for x in xrange(len(self._objects)):
             obj = self._objects[x]
-            if hasattr(obj, "get_available_space"):
-                if obj.get_available_space(resource['type']) >= resource['qty']:
+            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.allow_deposit:
+                if obj.res_storage.get_available_space(resource['type']) >= resource['qty']:
                     candidates.append( obj)
 
         candidates.sort(key=lambda candidate: (candidate.position-position).get_length())
@@ -63,18 +63,18 @@ class Game(object):
         return None
 
     
-    def find_reservoir(self, position, resource_type, qty=1):
+    def find_forage(self, position, resource_type, qty=1):
         candidates = []
         backups = []
         print "Attempting to find reservoir for "+str(resource_type)+"in qty "+str(qty)
         
         for x in xrange(len(self._objects)):
             obj = self._objects[x]
-            if hasattr(obj, "res_reservoir") and obj.res_reservoir is not None:
-                avail = obj.res_reservoir.get_available_contents(resource_type)
+            if hasattr(obj, "res_reservoir") and obj.res_storage is not None and obj.res_storage.allow_forage:
+                avail = obj.res_storage.get_available_contents(resource_type)
                 if avail >= qty:
                     candidates.append( obj)
-                elif avail > 0 or obj.res_reservoir.regen_rate > 0:
+                elif avail > 0 or obj.res_storage.regen_rate > 0:
                     backups.append( obj)
 
         candidates.sort(key=lambda candidate: (candidate.position-position).get_length())
@@ -93,15 +93,15 @@ class Game(object):
 class GameObject(object):
     """Base class for all objects that exist within the game simulation."""
 
-    def __init__(self, game, size=(100,100), position=(0,0)):
+    def __init__(self, gamemgr, size=(100,100), position=(0,0)):
         """Initialize with the given game."""
         self.finished = False
         self.rect = pygame.Rect(0,0,size[0],size[1])
         self.rect.center = position
         self._position = vector.Vec2d( position)
-        self.game = game
+        self.game = gamemgr
         self._selected = False
-        self.id = game.new_object_id()
+        self.id = gamemgr.new_object_id()
         self._render_state = { "selected": self._selected}
         self.selectable = False
         self.target_actions = set([])
@@ -182,141 +182,6 @@ class WorkspaceReservation(reservation.Reservation):
         if self.workspace is not None:
             self.workspace.release()
 
-class ResourceReservoir(object):
-    def __init__(self, structure, qty, res_type, regen_rate=0):
-        self.structure = structure
-        self.resource_type = res_type
-        self.capacity = qty
-        self.quantity = qty
-        self.reservations = []
-        self.regen_rate = regen_rate
-        self.debug_string = 'debug'
-        
-    def reserve(self, tag=None, amount=1):
-        if tag is None:
-            tag = self.resource_type
-            
-        qty = self.get_available_contents(tag)
-        res = resource.ResourceReservation(self.structure)
-        self.reservations.append(res)
-        
-        if qty >= amount:
-            res.make_ready()
-            
-        return res
-        
-    def update(self):
-        for r in self.reservations:
-            r.update()
-        self.reservations[:] = [r for r in self.reservations if r.valid]
-        
-        self.quantity += self.regen_rate
-        self.quantity = min( self.quantity, self.capacity)
-        
-        pending_res = [r for r in self.reservations if not r.ready]
-        count = min(len(pending_res), int(self.get_available_contents(self.resource_type)+len(pending_res)))
-        for i in xrange(count):
-            pending_res[i].make_ready()
-            
-        self.debug_string = str(len(self.reservations)) +":" + str(len(pending_res))
-
-    def get_actual_contents(self, tag):
-        if self.resource_type == tag:
-            return self.quantity
-        else:
-            return 0
-        
-    def get_available_contents(self, tag):
-        if self.resource_type == tag:
-            return self.quantity - len(self.reservations)
-        else:
-            return 0
-        
-    def withdraw(self, res_type, qty):
-        if self.resource_type == res_type:
-            qty = min(qty, self.quantity)
-            if qty > 0:
-                self.quantity -= qty
-                return {'type':res_type, 'qty': qty}            
-            else:
-                return None
-        else:
-            return None
-        
-class ResourceStorage(object):
-    def __init__(self, structure, capacity, accept_list):
-        self.structure = structure
-        self.accepts = tuple(accept_list)
-        self.capacity = capacity
-        self.contents = {}
-        self.reservations = []
-        for tag in self.accepts:
-            self.contents[tag] = 0
-
-    def do_decay(self):
-        for key in self.contents:
-            self.contents[key] = max(0, self.contents[key]-0.001)
-
-    def reserve(self, tag, amount=1):
-        cap = self.get_available_space(tag)
-        if cap >= amount:
-            res = resource.ResourceReservation(self.structure)
-            res.make_ready()
-            self.reservations.append(res)
-            return res
-        else:
-            return None
-            
-    def deposit(self, resource):
-        if self.get_available_space(resource['type']) < resource['qty']:
-            return False
-                    
-        try:
-            self.contents[resource['type']] += resource['qty']
-        except KeyError:
-            if resource['type'] in self.accepts:
-                self.contents[resource['type']] = resource['qty']
-                
-        return True
-            
-    def get_available_space(self, tag):
-        if tag is None or tag in self.accepts:
-            cap = self.capacity
-            for key in self.contents:
-                cap -= self.contents[key]
-            for r in self.reservations:
-                if r.valid:
-                    cap -= 1
-            return cap
-        else:
-            return 0
-
-    def get_contents(self, tag=None):
-        if tag is None:
-            content = 0
-            for key in self.contents:
-                content += self.contents[key]
-            return content
-        else:
-            try:
-                return self.contents[tag]
-            except KeyError:
-                return 0
-            
-    def update(self):
-        for r in self.reservations:
-            r.update()
-
-        self.reservations[:] = [r for r in self.reservations if r.valid]           
-            
-            
-    def withdraw(self, tag, amount):
-        try:
-            self.contents[tag] -= amount
-        except KeyError:
-            return 0
-
-
 class StructureObject(GameObject):
 
     def __init__(self, game, size=(100,100), position=(0,0), num_workspaces=1):
@@ -325,7 +190,6 @@ class StructureObject(GameObject):
         self.reservations = []
         self.ready_reservations = []
         self.res_storage = None
-        self.res_reservoir = None
         
         rad = math.pi/4.0
         arc = (num_workspaces-1)*rad
@@ -339,21 +203,20 @@ class StructureObject(GameObject):
             self.workspaces.append( workspace)
             
     def set_storage(self, cap, accepts):
-        self.res_storage = resource.ResourceStore(self, cap, accepts)
+        assert self.res_storage is None
+        self.res_storage = resource.ResourceStore(self, cap, accepts, True, False)
 
     def set_reservoir(self, qty, res_type, regen_rate):
-        self.res_reservoir = resource.ResourceStore(self, qty, [res_type])
-        self.res_reservoir.deposit( {'type':res_type, 'qty':qty})
-        self.res_reservoir.set_delta(res_type, regen_rate)
+        assert self.res_storage is None        
+        self.res_storage = resource.ResourceStore(self, qty, [res_type], False, True)
+        self.res_storage.deposit( {'type':res_type, 'qty':qty})
+        self.res_storage.set_delta(res_type, regen_rate)
         
     def update(self):
         GameObject.update(self)
         
         if self.res_storage is not None:
             self.res_storage.update()
-            
-        if self.res_reservoir is not None:
-            self.res_reservoir.update()
         
         #update ready workspace reservations
         for res in self.ready_reservations:

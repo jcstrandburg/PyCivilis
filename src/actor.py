@@ -101,7 +101,7 @@ class ForageTask(Task):
         actor = self.actor
         self._progress += 0.5
         if self._progress >= 1.0:
-            reservoir = actor.target_workspace.struct.res_reservoir
+            reservoir = actor.target_workspace.struct.res_storage
             actor.carrying = reservoir.withdraw(self.order.resource_type, 1)
             actor.target_workspace.release()
             actor.forage_reservation.release()
@@ -169,7 +169,7 @@ class ReserveForageTask(Task):
     def __init__(self, order, actor, structure):
         Task.__init__(self, order, actor)
         self._structure = structure
-        self._reservation = self._structure.res_reservoir.reserve_resources(order.resource_type, 1)
+        self._reservation = self._structure.res_storage.reserve_resources(order.resource_type, 1)
         if self._reservation is None:
             self.order.seek_new_reservoir()
             self.cancel()
@@ -298,7 +298,7 @@ class ForageOrder(Order):
     
     def seek_new_reservoir(self):
         self._task_state = self._state_reserve_forage        
-        self._target = self.game.find_reservoir(self.actor.position, self._target.res_reservoir.resource_type, 1)
+        self._target = self.game.find_forage(self.actor.position, self._target.res_storage.resource_type, 1)
         print self._target
         if self._target is None:
             self.cancel()
@@ -328,3 +328,5 @@ class OrderBuilder(object):
             self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target, 'stone'))
         elif tag == "cut-wood":
             self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target, 'wood'))
+        else:
+            raise ValueError('Unrecognized tag '+str(tag))

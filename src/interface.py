@@ -780,7 +780,7 @@ class OrderMenuBuilder(object):
         if len(self.options) == 0:
             return False
 
-        if len(self.options) > 1:
+        if len(self.options) >= 1:
             items = []
             for o in self.options:
                 action = OrderBuilderAction(self.builder, o)
@@ -879,13 +879,6 @@ class StructWidget(SpriteWidget):
         if store is not None:
             for key in store._accepts:
                 text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key+': '), LambdaTextGenerator(lambda bound_key=key: store.get_actual_contents(bound_key))]))
-                panel.add_child( text)
-                offset += 1
-
-        reservoir = self._game_object.res_reservoir
-        if reservoir is not None:
-            for key in reservoir._accepts:
-                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key+': '), LambdaTextGenerator(lambda bound_key=key: reservoir.get_actual_contents(bound_key))]))
                 panel.add_child( text)
                 offset += 1
                 
