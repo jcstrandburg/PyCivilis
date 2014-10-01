@@ -1,12 +1,12 @@
 import reservation
 
 class Prototype(object):
-    def __init__(self, tag, sprite=None):
+    def __init__(self, tag, sprite=None, concrete=False):
         self.parent = None
         self.tag = tag
         self.children = {}
         self.sprite = sprite
-        pass
+        self.concrete = concrete
         
     def add_child(self, child):
         self.children[child.tag] = child
