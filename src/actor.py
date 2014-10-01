@@ -14,6 +14,18 @@ class Actor(game.GameObject):
         self.selectable = True
         self.carrying = None
 
+    def move_toward(self, targ_pos, speed_mult=1.0):
+        '''Moves the actor towards the target position at the requested multiple of the actors normal walk speed.
+        Returns the remaining distance to the target position after the movement is complete'''
+
+        move_rate = self.move_speed * speed_mult
+        diff = targ_pos - self.position
+        if diff.length < move_rate:
+            self.position = targ_pos
+        else:
+            self.position = self.position.interpolate_to( targ_pos, move_rate/diff.length)
+        return (targ_pos - self.position).length
+
     def update(self):   
         if self._task is None:
             if self._order is not None:
@@ -72,13 +84,8 @@ class SimpleMoveTask(Task):
         
     def do_step(self):
         actor = self.actor
-        pos = actor.position
-        diff = self._dest - pos
-        move_speed = actor.move_speed*self._moveratio
-        if diff.length > move_speed:
-            actor.position = pos.interpolate_to( self._dest, move_speed/diff.length)
-        else:
-            actor.position = self._dest
+        dist = actor.move_toward( self._dest, self._moveratio)
+        if dist < 1:
             self._completed = True
             
     def cancel(self):
@@ -195,6 +202,30 @@ class WaitTask(Task):
         
     def do_step(self):
         self._completed = self.callback()
+
+
+class SeekTask(Task):
+    def __init__(self, order, actor, target_obj):
+        Task.__init__(self, order, actor)
+        self._target_obj = target_obj
+
+    def do_step(self):
+        dist = self.actor.move_toward( self._target_obj.position, 1.0)
+        if dist < 1:
+            self._completed = True
+
+class HuntKillTask(Task):
+    def __init__(self, order, actor, target):
+        Task.__init__(self, order, actor)
+        self._target = target
+        self._progress = 0
+
+    def do_step(self):
+        self._progress += 0.05
+        if self._progress >= 1:
+            self._completed = True
+            self.actor.carrying = {'type':'meat', 'qty':1}
+        
         
 class Order(object):
     """Base class for all order classes. Implements a sort of state
@@ -219,7 +250,47 @@ class Order(object):
             self._task.cancel()
         self.valid = False
             
+class HuntOrder(Order):
+    def __init__(self, actor, game, target):
+        Order.__init__(self, actor, game)
+        self._target = target
+        self._task_state = self._state_seek
 
+    def _state_seek(self):
+        self._task_state = self._state_reserve
+        return SeekTask(self, self.actor, self._target)
+
+    def _state_reserve(self):
+        self._task_state = self._state_kill
+        return WaitTask(self, self.actor, lambda: True)
+
+    def _state_kill(self):
+        self._task_state = self._state_reserve_storage
+        return HuntKillTask(self, self.actor, self._target)
+
+    def _state_reserve_storage(self):
+        if self.actor.carrying is None:
+            self.cancel()
+            return None
+            
+        self._task_state = self._state_seek_storage
+        return ReserveStorageTask(self, self.actor, self.game)
+        
+    def _state_seek_storage(self):
+        self._task_state = self._state_dump_storage
+        if self.actor.storage_reservation is not None:
+            diff = -self.actor.position + self.actor.storage_reservation.structure.position
+            length = diff.length - 125
+            targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
+            return SimpleMoveTask(self, self.actor, targetpos)
+        else:
+            return SimpleMoveTask(self, self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
+
+    def _state_dump_storage(self):
+        self._task_state = self._state_seek
+        return DumpTask(self, self.actor)
+
+    
             
 class MoveOrder(Order):
     """Class that handles move orders, including wandering functionality
@@ -299,7 +370,6 @@ class ForageOrder(Order):
     def seek_new_reservoir(self):
         self._task_state = self._state_reserve_forage        
         self._target = self.game.find_forage(self.actor.position, self._target.res_storage.resource_type, 1)
-        print self._target
         if self._target is None:
             self.cancel()
         
@@ -328,5 +398,7 @@ class OrderBuilder(object):
             self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target, 'stone'))
         elif tag == "cut-wood":
             self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target, 'wood'))
+        elif tag == "hunt":
+            self.selected.set_order( HuntOrder(self.selected, self.selected.game, self.target))
         else:
             raise ValueError('Unrecognized tag '+str(tag))

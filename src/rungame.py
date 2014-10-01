@@ -62,8 +62,8 @@ class HerdWidget(interface.SpriteWidget):
         interface.SpriteWidget.update(self, viewport, mpos)
         for i in xrange(len(self.meatsicles)):
             ms = self.meatsicles[i]
-            pos = self.game_object._render_state['movement']*((i+1)*5)
-            ms._space_rect.center = pos
+            pos = self.game_object._render_state['movement']*-((i+1)*5) +  (self._base_rect.w/2, self._base_rect.h)
+            ms._base_rect.center = pos
             ms.update_rect()
     
 class HerdObject(game.GameObject):
@@ -80,7 +80,7 @@ class HerdObject(game.GameObject):
         elif self.position[0] < -100:
             self.dir = 1
 
-        move_vec = vector.Vec2d(self.dir*3,self.dir*4)
+        move_vec = vector.Vec2d(self.dir*1.5,self.dir*2)
         self._render_state['movement'] = move_vec
         self.position += move_vec
     
@@ -229,7 +229,7 @@ class TestActivity( application.Activity):
         #hut2
         testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(10, ('stone', 'wood'))        
+        testobj.set_storage(10, ('stone', 'wood', 'meat'))        
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
@@ -253,7 +253,7 @@ class TestActivity( application.Activity):
         #trees
         testobj = game.StructureObject(self.game, (100,100), (200, 170), 2)
         testobj.target_actions = testobj.target_actions.union(['cut-wood'])
-        testobj.set_reservoir(5, 'wood', 0.005)       
+        testobj.set_reservoir(5, 'wood', 0.005)
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("tree"))
         self.iface.add_child( testwidg)
