@@ -449,7 +449,7 @@ class MapWidget(BaseWidget):
         if event.type == MOUSEBUTTONDOWN and event.button == 3:
             sel = self.game.selected_obj
             if sel is not None and hasattr(sel, "set_order"):
-                sel.set_order( actor.MoveOrder(sel,self.game,event.gamepos))            
+                sel.set_order( actor.SimpleMoveOrder(sel, event.gamepos))            
                 return True
         return BaseWidget._self_handle_event(self, event)
             

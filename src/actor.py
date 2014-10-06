@@ -9,7 +9,6 @@ class Actor(game.GameObject):
     def __init__(self, gamemgr, pos):
         game.GameObject.__init__(self, gamemgr, (50,50), pos)
         self.move_speed = 5.0
-        self._task = None
         self._order = None
         self.selectable = True
         self.carrying = None
@@ -27,22 +26,14 @@ class Actor(game.GameObject):
         return (targ_pos - self.position).length
 
     def update(self):
-        if self._task is None:
-            if self._order is not None:
-                self._task = self._order.get_task()
-                if self._task is None:
-                    self._order = None
+        if self._order is not None:
+            self._order.do_step()
 
-        if self._task is not None:
-            self._task.do_step()
-            if self._task.is_completed() or not self._task.valid:
-                self._task = None
-                
-        if self._order is None or not self._order.valid:
-            self.set_order( MoveOrder(self, self.game, self.position))
+        if self._order is None or self._order.completed or not self._order.valid:
+            print self._order
+            self.set_order( IdleOrder(self))
 
     def set_order(self, order):
-        self._task = None
         if self._order is not None:
             self._order.cancel()
         self._order = order
@@ -68,6 +59,10 @@ class BaseOrder(object):
 
     def cancel(self):
         self.valid = False
+
+class DummyOrder(BaseOrder):
+    def do_step(self):
+        self.completed = True
 
 class StatefulSuperOrder(BaseOrder):
     def __init__(self, actor, state=None):
@@ -116,6 +111,188 @@ class SimpleMoveOrder(BaseOrder):
         dist = self.actor.move_toward( self.targ_pos, self.move_rate)
         if dist < 1:
             self.completed = True
+
+
+
+class IdleOrder(StatefulSuperOrder):
+    def __init__(self, actor):
+        self.idle_center = actor.position       
+        StatefulSuperOrder.__init__(self, actor, "idle")
+
+    def start_idle(self):
+        idle_range = 30
+        position = (self.idle_center[0] + random.uniform(-idle_range, idle_range), self.idle_center[1] + random.uniform(-idle_range, idle_range))
+        return SimpleMoveOrder(self.actor, position, 0.1)
+
+    def complete_idle(self):
+        self.set_state('idle')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class ForageOrder(StatefulSuperOrder): 
+
+    def __init__(self, actor, target, resource_type):
+        self._target = target
+        self.resource_type = resource_type
+        StatefulSuperOrder.__init__(self, actor, "reserve_forage")
+        
+    def start_reserve_forage(self):
+        return DummyOrder(self.actor)
+
+    def complete_reserve_forage(self):
+        self.set_state("move_to_forage")
+
+    def start_move_to_forage(self):
+        return DummyOrder(self.actor)
+
+    def complete_move_to_forage(self):
+        self.set_state("wait_for_forage_reservation")
+
+    def start_wait_for_forage_reservation(self):
+        return DummyOrder(self.actor)
+
+    def compete_wait_for_forage_reservation(self):
+        self.set_state("reserve_forage_workspace")
+
+    def start_reserve_forage_workspace(self):
+        return DummyOrder(self.actor)
+
+    def complete_reserve_forage_workspace(self):
+        self.set_state("move_to_workspace")
+
+    def start_move_to_workspace(self):
+        return DummyOrder(self.actor)
+
+    def complete_move_to_workspace(self):
+        self.set_state("do_forage")
+
+    def start_do_forage(self):
+        return DummyOrder(self.actor)
+
+    def complete_do_forage(self):
+        self.set_state("reserve_storage")
+
+    def start_reserve_storage(self):
+        return DummyOrder(self.actor)
+
+    def complete_reserve_storage(self):
+        self.set_state("move_to_storage")
+
+    def start_move_to_storage(self):
+        return DummyOrder(self.actor)
+
+    def complete_move_to_storage(self):
+        self.set_state("store_resources")
+
+    def start_store_resources(self):
+        return DummyOrder(self.actor)
+
+    def complete_store_resources(self):
+        self.set_state("reserve_forage")
+
+    def start_seek_new_reservoir(self):
+        return DummyOrder(self.actor)
+
+    def complete_seek_new_reservoir(self):
+        self.set_state("move_to_forage")
+
+    def _state_reserve_forage(self):
+        self._task_state = self._state_seek_forage_location
+        return ReserveForageTask(self, self.actor, self._target)
+        
+    def _state_seek_forage_location(self):
+        diff = -self.actor.position + self._target.position
+        length = diff.length - 125
+        targetpos = self.actor.position.interpolate_to(self._target.position, length/diff.length)
+        
+        self._task_state = self._state_wait_for_forage_reservation
+        return SimpleMoveTask(self, self.actor, targetpos)    
+
+    def _state_wait_for_forage_reservation(self):
+        self._task_state = self._state_reserve_forage_workspace
+        return WaitTask(self, self.actor, lambda: self.actor.forage_reservation.ready)
+        
+    def _state_reserve_forage_workspace(self):
+        self._task_state = self._state_seek_workspace
+        return ReserveWorkspaceTask(self, self.actor, self._target)
+        
+    def _state_seek_workspace(self):
+        self._task_state = self._state_do_forage
+        return SimpleMoveTask(self, self.actor, self.actor.target_workspace.position)
+    
+    def _state_do_forage(self):
+        self._task_state = self._state_reserve_storage
+        return ForageTask(self, self.actor, self._target)
+        
+    def _state_reserve_storage(self):
+        if self.actor.carrying is None:
+            self.cancel()
+            return None
+            
+        self._task_state = self._state_seek_storage
+        return ReserveStorageTask(self, self.actor, self.game)
+        
+    def _state_seek_storage(self):
+        self._task_state = self._state_dump_storage
+        if self.actor.storage_reservation is not None:
+            diff = -self.actor.position + self.actor.storage_reservation.structure.position
+            length = diff.length - 125
+            targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
+            return SimpleMoveTask(self, self.actor, targetpos)
+        else:
+            return SimpleMoveTask(self, self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
+        
+    def _state_dump_storage(self):
+        self._task_state = self._state_reserve_forage
+        return DumpTask(self, self.actor)
+    
+    def seek_new_reservoir(self):
+        self._task_state = self._state_reserve_forage        
+        self._target = self.game.find_forage(self.actor.position, self._target.res_storage.resource_type, 1)
+        if self._target is None:
+            self.cancel()
+        
+    def cancel(self):
+        StatefulSuperOrder.cancel(self)
+        if hasattr(self.actor, 'target_workspace') and self.actor.target_workspace is not None:
+            self.actor.target_workspace.release()
+            self.actor.target_workspace = None
+        if hasattr(self.actor, 'storage_reservation') and self.actor.storage_reservation is not None:
+            self.actor.storage_reservation.release()
+            self.actor.storage_reservation = None
+        if hasattr(self.actor, 'forage_reservation') and self.actor.forage_reservation is not None:
+            self.actor.forage_reservation.release()
+            self.actor.forage_reservation = None   
+
+
+
+
+
+
+
+
+
+
+
+
+
+'''
+Old shit, kill it with fire
+'''
+
+
+
 
 class Task(object):
     """Base class for all task classes."""
@@ -350,7 +527,6 @@ class HuntOrder(Order):
     def _state_dump_storage(self):
         self._task_state = self._state_seek
         return DumpTask(self, self.actor)
-
     
             
 class MoveOrder(Order):
@@ -370,7 +546,7 @@ class MoveOrder(Order):
         self.task_state = self._state_wander
         return WanderTask(self, self.actor, self._dest)
         
-class ForageOrder(Order): 
+"""class ForageOrder(Order): 
 
     def __init__(self, actor, game, target, resource_type):
         Order.__init__(self, actor, game)
@@ -444,8 +620,12 @@ class ForageOrder(Order):
             self.actor.storage_reservation = None
         if hasattr(self.actor, 'forage_reservation') and self.actor.forage_reservation is not None:
             self.actor.forage_reservation.release()
-            self.actor.forage_reservation = None            
+            self.actor.forage_reservation = None"""           
         
+
+
+
+'''we need this, don't get rid of it'''
 class OrderBuilder(object):
     def __init__(self, selected, target):
         self.selected = selected
@@ -456,10 +636,10 @@ class OrderBuilder(object):
         
     def do_order(self, tag):
         if tag == "mine":
-            self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target, 'stone'))
+            self.selected.set_order( ForageOrder(self.selected, self.target, 'stone'))
         elif tag == "cut-wood":
-            self.selected.set_order( ForageOrder(self.selected, self.selected.game, self.target, 'wood'))
+            self.selected.set_order( ForageOrder(self.selected, self.target, 'wood'))
         elif tag == "hunt":
-            self.selected.set_order( HuntOrder(self.selected, self.selected.game, self.target))
+            self.selected.set_order( HuntOrder(self.selected, self.target))
         else:
             raise ValueError('Unrecognized tag '+str(tag))
