@@ -30,6 +30,29 @@ class Prototype(object):
                     return found
             return None
         
+    def find_parent(self, tag):
+        if self.tag == tag:
+            return self
+        elif self.parent is not None:
+            return self.parent.find_parent(tag)
+        else:
+            return None
+        
+    def flatten_tree(self):
+        flat = [self.tag]
+        for key in self.children:
+            flat += self.children[key].flatten_tree()
+        return flat
+    
+    def flatten_tree_concrete(self):
+        if self.concrete:
+            flat = [self.tag]
+        else:
+            flat = []
+        for key in self.children:
+            flat += self.children[key].flatten_tree_concrete()
+        return flat            
+        
 class ResourceReservation(reservation.Reservation):
     def __init__(self, structure, tag, qty):
         reservation.Reservation.__init__(self)
@@ -52,6 +75,9 @@ class ResourceStore(object):
 
         self.debug_string = 'hey hey hey'
 
+    def accepts(self, tag):
+        return tag in self._accepts
+     
     def set_delta(self, tag, delta):
         self._deltas[tag] = delta
 
@@ -99,46 +125,67 @@ class ResourceStore(object):
     def reserve_resources(self, tag, amount):
         if tag is None:
             tag = self.resource_type
-            
-        qty = self.get_available_contents(tag)
-        res = ResourceReservation(self.structure, tag, amount)
-        self._resource_reservations.append(res)
-        
-        if qty >= amount:
-            res.make_ready()
-            
-        return res
 
-    def get_actual_contents(self, tag=None):
-        if tag is None:
+        if self.accepts(tag):
+            qty = self.get_available_contents(tag)
+            res = ResourceReservation(self.structure, tag, amount)
+            self._resource_reservations.append(res)
+            
+            if qty >= amount:
+                res.make_ready()
+                
+            return res
+        else:
+            return None
+
+    def get_actual_contents(self, tag_or_tags=None):
+        if tag_or_tags is None:
             content = 0
             for key in self.contents:
                 content += self.contents[key]
             return content
-        else:
+        elif isinstance(tag_or_tags, (basestring, unicode)):
             try:
-                return self.contents[tag]
+                return self.contents[tag_or_tags]
             except KeyError:
                 return 0
+        else:
+            content = 0
+            for tag in tag_or_tags:
+                content += self.get_actual_contents(tag)
+            return content
+                
 
-    def get_unclaimed_contents(self, tag=None):
+    def get_unclaimed_contents(self, tag_or_tags=None):
         '''Returns the contents that are not accounted for by a 'ready' reservation. 
         These contents may be reserved but no reservation has yet been activated for them'''
-                
-        content = self.get_actual_contents(tag)
-        for res in self._resource_reservations:
-            if (res.tag == tag or tag == None) and res.ready:
-                content -= res.qty
-        return content        
 
-    def get_available_contents(self, tag=None):
+        if isinstance(tag_or_tags, (basestring, unicode)) or tag_or_tags == None:                
+            content = self.get_actual_contents(tag_or_tags)
+            for res in self._resource_reservations:
+                if (res.tag == tag_or_tags or tag_or_tags == None) and res.ready:
+                    content -= res.qty
+            return content
+        else:
+            content = 0
+            for tag in tag_or_tags:
+                content += self.get_unclaimed_contents(tag)
+            return content
+
+    def get_available_contents(self, tag_or_tags=None):
         '''Returns the contents that are not accounted for by any reservation, ready or otherwise'''
                 
-        content = self.get_actual_contents(tag)
-        for res in self._resource_reservations:
-            if (res.tag == tag or tag == None):
-                content -= res.qty
-        return content
+        if isinstance(tag_or_tags, (basestring, unicode)) or tag_or_tags == None:                
+            content = self.get_actual_contents(tag_or_tags)
+            for res in self._resource_reservations:
+                if (res.tag == tag_or_tags or tag_or_tags == None):
+                    content -= res.qty
+            return content
+        else:
+            content = 0
+            for tag in tag_or_tags:
+                content += self.get_unclaimed_contents(tag)
+            return content    
 
     def get_actual_space(self, tag):
         if tag is None or tag in self._accepts:
@@ -157,10 +204,6 @@ class ResourceStore(object):
 
     def get_capacity(self):
         return self._capacity
-
-    def do_decay(self):
-        for key in self.contents:
-            self.contents[key] = max(self.contents[key]-.01, 0)
 
     def update(self):
         for tag in self._deltas:
@@ -187,6 +230,126 @@ class ResourceStore(object):
             qty = self.get_unclaimed_contents(pres.tag)
             if qty >= pres.qty:
                 pres.make_ready()
+
+class CompositeResourceStore(ResourceStore):
+    def __init__(self, stores=None, allow_deposit=True, allow_forage=True):
+        self._stores = []
+        self._accepts = []        
+        if stores is not None:
+            self.add_stores(stores)
+            
+    def accepts(self, tag):
+        accepts = False
+        for store in self._stores:
+            accepts = accepts or store.accepts(tag)
+        return accepts            
+
+    def add_store(self, store):
+        self.add_stores( (store,))
+        
+    def add_stores(self, stores):
+        for store in stores:
+            for res in store._accepts:
+                if res in self._accepts:
+                    raise ValueError("Overlapping resource acceptance: "+str(res))
+            self._accepts.extend(store._accepts)
+            self._stores.append(store)       
+
+    def set_delta(self, tag, delta):
+        for store in self._stores:
+            if tag in store._accepts:
+                store.set_delta(tag, delta)
+
+    def withdraw(self, tag, amount):
+        qty = 0
+        
+        for store in self._stores:
+            avail = store.get_actual_contents(tag)
+            if avail > 0:
+                res = store.withdraw(tag, amount-qty)
+                qty += res['qty']
+                
+            if qty >= amount:
+                break
+            
+        if qty > 0:
+            return {'type':tag, 'qty':qty}
+        else:
+            return None                
+
+    def force_deposit(self, resource):
+        raise NotImplementedError("force_deposit not implemented for CompositeResourceStore")        
+
+    def deposit(self, resource):
+        qty = resource['qty']
+        for store in self._stores:
+            avail = store.get_actual_space(resource['type'])
+            dep_qty = min(qty, avail)
+            if dep_qty > 0:
+                store.deposit( {'type': resource['type'], 'qty':dep_qty})
+                qty -= dep_qty
+                
+            if qty <= 0:
+                return True
+            
+        return False
+
+    def reserve_storage(self, tag, amount):
+        for store in self._stores:
+            avail = store.get_available_space(tag)
+            if avail >= amount:
+                return store.reserve_storage(tag, amount)
+
+    def reserve_resources(self, tag, amount):
+        for store in self._stores:
+            reservation = store.reserve_resources(tag, amount)
+            if reservation is not None:
+                return reservation
+            
+        return None
+
+    def get_actual_contents(self, tag=None):
+        contents = 0
+        for store in self._stores:
+            contents += store.get_actual_contents(tag)
+        return contents
+
+    def get_unclaimed_contents(self, tag=None):
+        '''Returns the contents that are not accounted for by a 'ready' reservation. 
+        These contents may be reserved but no reservation has yet been activated for them'''
+        contents = 0
+        for store in self._stores:
+            contents += store.get_unclaimed_contents(tag)
+        return contents
+    
+    def get_available_contents(self, tag=None):
+        '''Returns the contents that are not accounted for by any reservation, ready or otherwise'''
+        contents = 0
+        for store in self._stores:
+            contents += store.get_available_contents(tag)
+        return contents
+
+    def get_actual_space(self, tag):
+        space = 0
+        for store in self._stores:
+            space += store.get_actual_space(tag)
+        return space
+
+    def get_available_space(self, tag):
+        space = 0
+        for store in self._stores:
+            space += store.get_available_space(tag)
+        return space
+    
+    def get_capacity(self):
+        cap = 0
+        for store in self._stores:
+            cap += store.get_capacity()
+        return cap
+
+    def update(self):
+        for store in self._stores:
+            store.update()
 
 def show_tree(base, depth=0):
     output = ""
