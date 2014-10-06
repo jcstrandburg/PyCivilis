@@ -26,7 +26,7 @@ class Actor(game.GameObject):
             self.position = self.position.interpolate_to( targ_pos, move_rate/diff.length)
         return (targ_pos - self.position).length
 
-    def update(self):   
+    def update(self):
         if self._task is None:
             if self._order is not None:
                 self._task = self._order.get_task()
@@ -55,6 +55,67 @@ class Actor(game.GameObject):
         
     def deselect(self):
         game.GameObject.deselect(self)
+
+class BaseOrder(object):
+    def __init__(self, actor):
+        self.actor = actor
+        self.game = actor.game
+        self.valid = True
+        self.completed = False
+
+    def do_step(self):
+        raise NotImplementedError("abstract class!")
+
+    def cancel(self):
+        self.valid = False
+
+class StatefulSuperOrder(BaseOrder):
+    def __init__(self, actor, state=None):
+        BaseOrder.__init__(self, actor)
+        self._state_name = None
+        self._state_order = None
+        if state is not None:
+            self.set_state(state)        
+
+    def set_state(self, state):
+        self._state_name = state
+        self._state_order = self._start_state(state)
+
+    def _start_state(self, state):
+        return getattr(self, "start_"+state)()
+
+    def _fail_state(self, state):
+        fail_method = "fail_"+state
+        if hasattr(self, fail_method):
+            getattr(self, fail_method)()
+        else:
+            self.valid = False
+
+    def _complete_state(self, state):
+        complete_method = "complete_"+state
+        if hasattr(self, complete_method):
+            getattr(self, complete_method)()
+        else:
+            self.valid = False
+
+    def do_step(self):
+        if self._state_order is not None:
+            self._state_order.do_step()
+            if self._state_order.completed:
+                self._complete_state(self._state_name)
+            elif not self._state_order.valid:
+                self._fail_state(self._state_name)
+
+class SimpleMoveOrder(BaseOrder):
+    def __init__(self, actor, targ_pos, move_rate=1.0):
+        BaseOrder.__init__(self, actor)
+        self.targ_pos = targ_pos
+        self.move_rate = move_rate
+
+    def do_step(self):
+        dist = self.actor.move_toward( self.targ_pos, self.move_rate)
+        if dist < 1:
+            self.completed = True
 
 class Task(object):
     """Base class for all task classes."""

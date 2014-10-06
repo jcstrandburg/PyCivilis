@@ -1,6 +1,8 @@
 import unittest
 
 import resource
+import game
+import actor
 
 class ResourceStoreTest(unittest.TestCase):
     def setUp(self):
@@ -189,11 +191,6 @@ class ExtendedResourceStoreTest(unittest.TestCase):
 
         self.rtree = base
 
-    '''
-    Testing ideas:
-    
-    I nixed overlapping acceptance sets.'''        
-        
     def test_composition(self):
         store = resource.CompositeResourceStore()
         sub1 = resource.ResourceStore(None, 4, ['stone'])
@@ -279,12 +276,7 @@ class ExtendedResourceStoreTest(unittest.TestCase):
         res1 = store.reserve_resources('wood', 2)
         res2 = store.reserve_resources('fish', 1)
         res3 = store.reserve_resources('meat', 2)
- 
-        print "store1 reservations"
-        print store1._resource_reservations
-        print "store2 reservations"
-        print store2._resource_reservations
-        
+         
         self.assertIsNotNone( res1)
         self.assertEqual( res1.qty, 2)
         self.assertIsNotNone( res2)
@@ -298,68 +290,25 @@ class ExtendedResourceStoreTest(unittest.TestCase):
 
         self.assertEqual( store1.get_available_contents(all), 5)
         self.assertEqual( store2.get_available_contents(all), 1)
-        #self.assertEqual( store.get_available_contents(all), 6)
+        self.assertEqual( store.get_available_contents(all), 6)
         self.assertEqual( store1.get_available_contents(food), 0)
-        #self.assertEqual( store2.get_available_contents(food), 1)        
-        #self.assertEqual( store.get_available_contents(food), 1)
+        self.assertEqual( store2.get_available_contents(food), 1)        
+        self.assertEqual( store.get_available_contents(food), 1)
         self.assertEqual( store1.get_available_contents(materials), 5)
-        #self.assertEqual( store2.get_available_contents(materials), 0)        
-        #self.assertEqual( store.get_available_contents(materials), 5)
+        self.assertEqual( store2.get_available_contents(materials), 0)        
+        self.assertEqual( store.get_available_contents(materials), 5)
         self.assertEqual( store1.get_available_contents(misc1), 0)
-        #self.assertEqual( store2.get_available_contents(misc1), 0)        
-        #self.assertEqual( store.get_available_contents(misc1), 0)
+        self.assertEqual( store2.get_available_contents(misc1), 0)        
+        self.assertEqual( store.get_available_contents(misc1), 0)
         self.assertEqual( store1.get_available_contents(misc2), 3)
-        #self.assertEqual( store2.get_available_contents(misc2), 1)        
-        #self.assertEqual( store.get_available_contents(misc2), 4)
+        self.assertEqual( store2.get_available_contents(misc2), 1)        
+        self.assertEqual( store.get_available_contents(misc2), 4)
         self.assertEqual( store1.get_available_contents(misc3), 3)
-        #self.assertEqual( store2.get_available_contents(misc3), 0)        
-        #self.assertEqual( store.get_available_contents(misc3), 3)        
-        
-        
-        
-    '''def test_resource_subtypes1(self):
-        store = resource.ResourceStore(None, 10, ['food', 'materials'])
-        store.deposit( {'type':'meat', 'qty': 2})
-        store.deposit( {'type':'fish', 'qty': 1})
-        store.deposit( {'type':'metal', 'qty': 3})
-        store.deposit( {'type':'reeds', 'qty': 3})
-        self.assertEqual( store.get_actual_contents( 'food'), 3)
-        self.assertEqual( store.get_actual_contents( 'fish'), 1)
-        self.assertEqual( store.get_actual_contents( 'clay'), 0)
-        self.assertEqual( store.get_actual_contents( 'materials'), 3)
-        self.assertEqual( store.get_available_space( 'food'), 1)
-        self.assertEqual( store.get_available_space( 'materials'), 1)
-        self.assertEqual( store.get_available_space( 'meat'), 1)
-        self.assertEqual( store.get_available_space( 'metal'), 1)
-        self.assertEqual( store.get_available_space( 'weapons'), 0)
+        self.assertEqual( store2.get_available_contents(misc3), 0)        
+        self.assertEqual( store.get_available_contents(misc3), 3)        
 
-    def test_resource_subtypes2(self):
-        store = resource.ResourceStore(None, 10, ['resource'])
-        store.deposit({'type':'clay', 'qty':2})
-        self.assertEqual( store.get_available_contents( 'resource'), 2)
-        self.assertEqual( store.get_available_contents( 'gathered'), 2)
-        self.assertEqual( store.get_available_contents( 'materials'), 2)
-        self.assertEqual( store.get_available_contents( 'clay'), 2)
-        self.get_actual_contents( store.get_available_space( 'clay'), 8)
-        self.get_actual_contents( store.get_available_space( 'weapons'), 8)
-        self.get_actual_contents( store.get_available_space( 'resource'), 8)
-        self.get_actual_contents( store.get_available_space( 'meat'), 8)
-        self.get_actual_contents( store.get_available_space( 'gathered'), 8)
-        self.get_actual_contents( store.get_available_space( 'resource'), 8)
-        self.get_actual_contents( store.get_available_space( 'materials'), 8)
 
-    def test_subtype_transactions(self):
-        store = resource.ResourceStore(None, 10, ['resource'])
-        self.assertFalse( store.deposit({'type':'materials', 'qty':1}))
-        self.assertFalse( store.deposit({'type':'gathered', 'qty':1}))
-        self.assertFalse( store.deposit({'type':'food', 'qty':1}))
-        self.assertTrue( store.deposit({'type':'clay', 'qty':1}))
-        self.assertIsNone( store.withdraw('resource', 1))
-        self.assertIsNone( store.withdraw('gathered', 1))
-        self.assertIsNone( store.withdraw('materials', 1))
-        self.assertIsNone( store.withdraw('clay', 1))'''
-
-class ResourceTree(unittest.TestCase):
+class ResourceTreeTests(unittest.TestCase):
     def setUp(self):
         base = resource.Prototype('resource')
         abstract = resource.Prototype('abstract')
@@ -469,10 +418,238 @@ class ResourceTree(unittest.TestCase):
         self.assertIn( 'spirit', elements)
         self.assertIn( 'nothing', elements)
         self.assertNotIn( 'clay', elements)
-        
-        
-        
-        
+
+class MockOrder(actor.BaseOrder):
+    def __init__(self, actor_, limit):
+        actor.BaseOrder.__init__(self, actor_)
+        self.counter = 0
+        self.limit = limit
+
+    def do_step(self):
+        self.counter += 1
+        if self.counter >= self.limit:
+            self.completed = True
+
+class MockFailOrder(actor.BaseOrder):
+    def do_step(self):
+        self.valid = False
+
+class MockStatefulOrder1(actor.StatefulSuperOrder):
+    def __init__(self, actor_):
+        actor.StatefulSuperOrder.__init__(self, actor_, 'state1')
+        self.actor.donesies = False
+
+    def start_state1(self):
+        return MockOrder(self.actor, 1)
+
+    def complete_state1(self):
+        self.actor.donesies = True
+        self.completed = True
+    
+class MockStatefulOrder2(actor.StatefulSuperOrder):
+    def __init__(self, actor_):
+        actor.StatefulSuperOrder.__init__(self, actor_, 'state1')
+        self.actor.donesies = False
+
+    def start_state1(self):
+        return MockOrder(self.actor, 1)
+
+class MockStatefulOrder3(actor.StatefulSuperOrder):
+    def __init__(self, actor_):
+        actor.StatefulSuperOrder.__init__(self, actor_, 'brood')    
+        self.actor.mood = 'vacant'
+
+    def start_brood(self):
+        return MockOrder(self.actor, 1)
+   
+    def complete_brood(self):
+        self.actor.mood = 'depressed'
+        self.set_state('ponder')
+
+    def start_ponder(self):
+        return MockOrder(self.actor, 2)
+
+    def complete_ponder(self):
+        self.actor.mood = 'pensive'
+        self.set_state('improve')
+
+    def start_improve(self):
+        return MockFailOrder(self.actor)
+
+    def complete_improve(self):
+        self.actor.mood = 'optimistic'
+        self.set_state('take_action')
+
+    def start_take_action(self):
+        return MockOrder(self.actor, 1)
+
+    def complete_take_action(self):
+        self.actor.mood = 'satisfied'
+        self.completed = True
+
+class MockStatefulOrder4(MockStatefulOrder3):
+    def fail_improve(self):
+        self.actor.mood = 'determined'
+        self.set_state('take_action')
+
+class MockMultiMoveOrder(actor.StatefulSuperOrder):
+    def __init__(self, actor_):
+        actor.StatefulSuperOrder.__init__(self, actor_, 'move1')
+
+    def start_move1(self):
+        return actor.SimpleMoveOrder(self.actor, (3,0))
+
+    def complete_move1(self):
+        self.set_state('move2')
+
+    def start_move2(self):
+        return actor.SimpleMoveOrder(self.actor, (3,4))
+
+    def complete_move2(self):
+        self.set_state('move3')
+
+    def start_move3(self):
+        return actor.SimpleMoveOrder(self.actor, (0,0))
+
+    def complete_move3(self):
+        self.completed = True
+    
+class RevisedOrderTests(unittest.TestCase):
+    def setUp(self):
+        self.game = game.Game()
+        self.actor = actor.Actor(self.game, (0,0))
+
+    def test_simple_mock_order(self):
+        mo = MockOrder(self.actor, 5)
+        for i in range(5):
+            self.assertFalse(mo.completed)
+            self.assertTrue(mo.valid)
+            mo.do_step()
+        self.assertTrue(mo.valid)
+        self.assertTrue(mo.completed)
+
+    def test_stateful_order_mocked(self):
+        mo = MockStatefulOrder1(self.actor)
+        self.assertTrue(mo.valid)
+        self.assertFalse(mo.completed)
+        self.assertFalse( self.actor.donesies)
+        mo.do_step()
+        self.assertTrue(mo.valid)
+        self.assertTrue(mo.completed)
+        self.assertTrue( self.actor.donesies)
+
+        #grind out some more steps to make sure it doesn't blow up
+        for i in range(5):
+            mo.do_step()
+
+        mo = MockStatefulOrder2(self.actor)
+        self.assertTrue(mo.valid)
+        self.assertFalse(mo.completed)
+        self.assertFalse( self.actor.donesies)
+        mo.do_step()
+        self.assertFalse(mo.valid)
+        self.assertFalse(mo.completed)
+
+        #grind out some more steps to make sure it doesn't blow up
+        for i in range(5):
+            mo.do_step()
+
+        mo = MockStatefulOrder3(self.actor)
+        self.assertEqual(self.actor.mood, 'vacant')
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'depressed')
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'depressed')
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'pensive')
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'pensive')
+        self.assertFalse( mo.valid)
+        self.assertFalse( mo.completed)
+
+        #grind out some more steps to make sure it doesn't blow up
+        for i in range(5):
+            mo.do_step()
+
+        mo = MockStatefulOrder4(self.actor)
+        self.assertEqual(self.actor.mood, 'vacant')
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'depressed')
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'depressed')
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'pensive')
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'determined')
+        self.assertTrue( mo.valid)
+        self.assertFalse( mo.completed)
+        mo.do_step()
+        self.assertEqual(self.actor.mood, 'satisfied')
+        self.assertTrue( mo.valid)
+        self.assertTrue( mo.completed)
+
+        #grind out some more steps to make sure it doesn't blow up
+        for i in range(5):
+            mo.do_step()
+
+    def test_simple_move_order(self):
+        self.actor.position = (0,0)
+        self.actor.move_speed = 0.5
+        mo = actor.SimpleMoveOrder(self.actor, (5,0), 2.0)
+
+        self.assertEqual( self.actor.position, (0,0))
+        self.assertFalse( mo.completed)
+        self.assertTrue( mo.valid)
+        mo.do_step()
+        self.assertFalse( mo.completed)
+        self.assertTrue( mo.valid)
+        self.assertEqual( self.actor.position, (1,0))
+        mo.do_step()
+        self.assertEqual( self.actor.position, (2,0))
+        self.assertFalse( mo.completed)
+        self.assertTrue( mo.valid)
+        mo.do_step()
+        self.assertEqual( self.actor.position, (3,0))
+        self.assertFalse( mo.completed)
+        self.assertTrue( mo.valid)
+        mo.do_step()
+        self.assertEqual( self.actor.position, (4,0))
+        self.assertFalse( mo.completed)
+        self.assertTrue( mo.valid)
+        mo.do_step()
+        self.assertEqual( self.actor.position, (5,0))
+        self.assertTrue( mo.completed)
+        self.assertTrue( mo.valid)
+
+
+    def test_stateful_move_order(self):
+        self.actor.position = (0,0)
+        self.actor.move_speed = 1.0
+
+        mo = MockMultiMoveOrder(self.actor)
+    
+        for i in range(3):
+            mo.do_step()
+
+        self.assertTrue(mo.valid)
+        self.assertFalse(mo.completed)
+        self.assertEqual(self.actor.position, (3,0))
+
+        for i in range(4):
+            mo.do_step()
+
+        self.assertTrue(mo.valid)
+        self.assertFalse(mo.completed)
+        self.assertEqual(self.actor.position, (3,4))
+
+        for i in range(5):
+            mo.do_step()
+
+        self.assertTrue(mo.valid)
+        self.assertTrue(mo.completed)
+        self.assertEqual(self.actor.position, (0,0))
+
+
         
         
 def run_tests(hard_fail=False):
