@@ -264,3 +264,21 @@ class ResourcePile(StructureObject):
         StructureObject.update(self)
         if self.res_storage.get_actual_contents(None) == 0:
             self.finished = True
+
+class HerdObject(GameObject):
+    def __init__(self, gamemgr, position):
+        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), position)
+        self.dir = 1
+        self._render_state['movement'] = vector.Vec2d(0,0)
+        
+    def update(self):
+        GameObject.update(self)
+        
+        if self.position[0] > 100:
+            self.dir = -1
+        elif self.position[0] < -100:
+            self.dir = 1
+
+        move_vec = vector.Vec2d(self.dir*1.5,self.dir*2)
+        self._render_state['movement'] = move_vec
+        self.position += move_vec
