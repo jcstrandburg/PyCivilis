@@ -31,6 +31,14 @@ class Actor(game.GameObject):
 
         if self._order is None or self._order.completed or not self._order.valid:
             print self._order
+            if self._order is None:
+                print "Order is none"
+            elif self._order.completed:
+                print "order is completed: "+self._order.status
+            elif self._order.valid is False:
+                print "order is not valid: "+self._order.status
+            else:
+                print "lolwat"
             self.set_order( IdleOrder(self))
 
     def set_order(self, order):
@@ -49,6 +57,7 @@ class Actor(game.GameObject):
 
 class BaseOrder(object):
     def __init__(self, actor):
+        self.status = ""
         self.actor = actor
         self.game = actor.game
         self.valid = True
@@ -75,6 +84,7 @@ class StatefulSuperOrder(BaseOrder):
     def set_state(self, state):
         self._state_name = state
         self._state_order = self._start_state(state)
+        self.status = "In state "+state
 
     def _start_state(self, state):
         return getattr(self, "start_"+state)()
@@ -84,6 +94,7 @@ class StatefulSuperOrder(BaseOrder):
         if hasattr(self, fail_method):
             getattr(self, fail_method)()
         else:
+            self.status = "Failure method "+fail_method+" not found"
             self.valid = False
 
     def _complete_state(self, state):
@@ -91,6 +102,7 @@ class StatefulSuperOrder(BaseOrder):
         if hasattr(self, complete_method):
             getattr(self, complete_method)()
         else:
+            self.status = "Completion method "+complete_method+" not found"
             self.valid = False
 
     def do_step(self):
@@ -127,7 +139,136 @@ class IdleOrder(StatefulSuperOrder):
     def complete_idle(self):
         self.set_state('idle')
 
+class ExtractResourceOrder(BaseOrder):
+    """Task for simple foraging"""    
+    def __init__(self, actor, source, resource_type):
+        BaseOrder.__init__(self, actor)
+        self._source = source
+        self._progress = 0
+        self._resource_type = resource_type
+        
+    def do_step(self):
+        actor = self.actor
+        self._progress += 0.5
+        if self._progress >= 1.0:
+            reservoir = actor.target_workspace.struct.res_storage
+            actor.carrying = reservoir.withdraw(self._resource_type, 1)
+            actor.target_workspace.release()
+            actor.forage_reservation.release()
+            actor.forage_reservation = None            
+            self.completed = True       
+            
+    def cancel(self):
+        actor = self.actor
+        if actor.target_workspace is not None:
+            actor.target_workspace.release()
+            actor.carrying = None
+        else:
+            print "I'm not sure how we get here cap'n"
+            
+            
+class DepositOrder(BaseOrder):
+        
+    def do_step(self):
+        deposited = False
+        actor = self.actor
+        if actor.storage_reservation is not None:
+            actor.storage_reservation.release()            
+            deposited = actor.storage_reservation.structure.res_storage.deposit( actor.carrying)
+            actor.storage_reservation = None
+    
+        if not deposited:
+            self.actor.game.controller.create_resource_dump(self.actor.position, self.actor.carrying)
 
+        actor.carrying = None
+        self.completed = True
+
+class ReserveStorageOrder(BaseOrder):
+
+    def __init__(self, actor):
+        BaseOrder.__init__(self, actor)
+        self._game = self.actor.game
+        
+    def do_step(self):
+        actor = self.actor
+        reservation = self._game.reserve_storage(actor.position, actor.carrying)
+        actor.storage_reservation = reservation
+        self.completed = True
+
+class ReserveWorkspaceOrder(BaseOrder):
+    def __init__(self, actor, structure):
+        BaseOrder.__init__(self, actor)
+        self._structure = structure
+        self._reservation = self._structure.reserve_workspace()
+        
+    def do_step(self):
+        actor = self.actor
+        if self._reservation.ready:
+            actor.target_workspace = self._reservation.workspace
+            actor.target_workspace.reserve()
+            actor.target_workspace
+            self.completed = True
+        else:
+            pass
+                    
+    def cancel(self):
+        Task.cancel(self)
+        self._reservation.release()
+        
+class ReserveForageOrder(BaseOrder):
+    def __init__(self, actor, structure, resource_type):
+        BaseOrder.__init__(self, actor)
+        self._structure = structure
+        self._reservation = self._structure.res_storage.reserve_resources(resource_type, 1)
+        if self._reservation is None:
+            print "Reservation is none, no bueno!"
+            self.cancel()
+        
+    def do_step(self):
+        actor = self.actor
+        print "doing step"
+        if self._reservation is not None:
+            actor.forage_reservation = self._reservation
+            self.completed = True
+        else:
+            pass
+                    
+    def cancel(self):
+        BaseOrder.cancel(self)
+        self.actor.forage_reservation = None
+        if self._reservation is not None:
+            self._reservation.release()
+
+class WaitOrder(BaseOrder):
+    def __init__(self, actor, callback):
+        BaseOrder.__init__(self, actor)
+        self.callback = callback
+        
+    def do_step(self):
+        self.completed = self.callback()
+
+
+class SeekOrder(BaseOrder):
+    def __init__(self, actor, target_obj):
+        BaseOrder.__init__(self, actor)
+        self._target_obj = target_obj
+
+    def do_step(self):
+        dist = self.actor.move_toward( self._target_obj.position, 1.0)
+        if dist < 1:
+            self.completed = True
+
+class HuntKillOrder(BaseOrder):
+    def __init__(self, actor, target):
+        BaseOrder.__init__(self, actor)
+        self._target = target
+        self._progress = 0
+
+    def do_step(self):
+        self._progress += 0.05
+        if self._progress >= 1:
+            self.completed = True
+            self.actor.carrying = {'type':'meat', 'qty':1}
 
 
 
@@ -148,121 +289,95 @@ class ForageOrder(StatefulSuperOrder):
         StatefulSuperOrder.__init__(self, actor, "reserve_forage")
         
     def start_reserve_forage(self):
-        return DummyOrder(self.actor)
+        print "start reserve forage"
+        return ReserveForageOrder(self.actor, self._target, self.resource_type)
 
     def complete_reserve_forage(self):
+        print "complete reserve forage"
         self.set_state("move_to_forage")
+
+    def fail_reserve_forage(self):
+        self._target = self.game.find_forage(self._target.position, self.resource_type, 1)
+        if self._target is None:
+            print "Got no target!!!"
+            self.cancel()
+        else:
+            self.set_state("reserve_forage")
 
     def start_move_to_forage(self):
-        return DummyOrder(self.actor)
-
-    def complete_move_to_forage(self):
-        self.set_state("wait_for_forage_reservation")
-
-    def start_wait_for_forage_reservation(self):
-        return DummyOrder(self.actor)
-
-    def compete_wait_for_forage_reservation(self):
-        self.set_state("reserve_forage_workspace")
-
-    def start_reserve_forage_workspace(self):
-        return DummyOrder(self.actor)
-
-    def complete_reserve_forage_workspace(self):
-        self.set_state("move_to_workspace")
-
-    def start_move_to_workspace(self):
-        return DummyOrder(self.actor)
-
-    def complete_move_to_workspace(self):
-        self.set_state("do_forage")
-
-    def start_do_forage(self):
-        return DummyOrder(self.actor)
-
-    def complete_do_forage(self):
-        self.set_state("reserve_storage")
-
-    def start_reserve_storage(self):
-        return DummyOrder(self.actor)
-
-    def complete_reserve_storage(self):
-        self.set_state("move_to_storage")
-
-    def start_move_to_storage(self):
-        return DummyOrder(self.actor)
-
-    def complete_move_to_storage(self):
-        self.set_state("store_resources")
-
-    def start_store_resources(self):
-        return DummyOrder(self.actor)
-
-    def complete_store_resources(self):
-        self.set_state("reserve_forage")
-
-    def start_seek_new_reservoir(self):
-        return DummyOrder(self.actor)
-
-    def complete_seek_new_reservoir(self):
-        self.set_state("move_to_forage")
-
-    def _state_reserve_forage(self):
-        self._task_state = self._state_seek_forage_location
-        return ReserveForageTask(self, self.actor, self._target)
-        
-    def _state_seek_forage_location(self):
         diff = -self.actor.position + self._target.position
         length = diff.length - 125
         targetpos = self.actor.position.interpolate_to(self._target.position, length/diff.length)
         
-        self._task_state = self._state_wait_for_forage_reservation
-        return SimpleMoveTask(self, self.actor, targetpos)    
+        return SimpleMoveOrder(self.actor, targetpos)    
 
-    def _state_wait_for_forage_reservation(self):
-        self._task_state = self._state_reserve_forage_workspace
-        return WaitTask(self, self.actor, lambda: self.actor.forage_reservation.ready)
-        
-    def _state_reserve_forage_workspace(self):
-        self._task_state = self._state_seek_workspace
-        return ReserveWorkspaceTask(self, self.actor, self._target)
-        
-    def _state_seek_workspace(self):
-        self._task_state = self._state_do_forage
-        return SimpleMoveTask(self, self.actor, self.actor.target_workspace.position)
-    
-    def _state_do_forage(self):
-        self._task_state = self._state_reserve_storage
-        return ForageTask(self, self.actor, self._target)
-        
-    def _state_reserve_storage(self):
-        if self.actor.carrying is None:
-            self.cancel()
-            return None
-            
-        self._task_state = self._state_seek_storage
-        return ReserveStorageTask(self, self.actor, self.game)
-        
-    def _state_seek_storage(self):
-        self._task_state = self._state_dump_storage
+    def complete_move_to_forage(self):
+        print "move to forage"
+        self.set_state("wait_for_forage_reservation")
+
+    def start_wait_for_forage_reservation(self):
+        return WaitOrder(self.actor, lambda: self.actor.forage_reservation.ready)
+
+    def complete_wait_for_forage_reservation(self):
+        print "complete wait for forage reservation"
+        self.set_state("reserve_forage_workspace")
+
+    def start_reserve_forage_workspace(self):
+        return ReserveWorkspaceOrder(self.actor, self._target)
+
+    def complete_reserve_forage_workspace(self):
+        print "complete reserve forage workspace"
+        self.set_state("move_to_workspace")
+
+    def start_move_to_workspace(self):
+        return SimpleMoveOrder(self.actor, self.actor.target_workspace.position)
+
+    def complete_move_to_workspace(self):
+        print "complete move to workspace"
+        self.set_state("do_forage")
+
+    def start_do_forage(self):
+        return ExtractResourceOrder(self.actor,self._target, self.resource_type)
+
+    def complete_do_forage(self):
+        print "complete do do forage"
+        self.set_state("reserve_storage")
+
+    def start_reserve_storage(self):
+        return ReserveStorageOrder(self.actor)
+
+    def complete_reserve_storage(self):
+        print "complete reserve storage"
+        self.set_state("move_to_storage")
+
+    def start_move_to_storage(self):
         if self.actor.storage_reservation is not None:
             diff = -self.actor.position + self.actor.storage_reservation.structure.position
             length = diff.length - 125
             targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
-            return SimpleMoveTask(self, self.actor, targetpos)
+            return SimpleMoveOrder(self.actor, targetpos)
         else:
-            return SimpleMoveTask(self, self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
-        
-    def _state_dump_storage(self):
-        self._task_state = self._state_reserve_forage
-        return DumpTask(self, self.actor)
+            return SimpleMoveOrder(self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
+
+    def complete_move_to_storage(self):
+        print "complete move to storage"
+        self.set_state("store_resources")
+
+    def start_store_resources(self):
+        return DepositOrder(self.actor)
+
+    def complete_store_resources(self):
+        print "complete store resources"
+        self.set_state("reserve_forage")
+
+    def start_seek_new_reservoir(self):
+        #return IDKWHAT
+        raise "IDK WHAT TO DO HERE YET"
+        return DummyOrder(self.actor)
+
+    def complete_seek_new_reservoir(self):
+        self.set_state("move_to_forage")
     
-    def seek_new_reservoir(self):
-        self._task_state = self._state_reserve_forage        
-        self._target = self.game.find_forage(self.actor.position, self._target.res_storage.resource_type, 1)
-        if self._target is None:
-            self.cancel()
-        
     def cancel(self):
         StatefulSuperOrder.cancel(self)
         if hasattr(self.actor, 'target_workspace') and self.actor.target_workspace is not None:
@@ -298,7 +413,7 @@ class Task(object):
     """Base class for all task classes."""
     
     def __init__(self, order, actor):
-        self._completed = False
+        self.completed = False
         self.valid = True
         self.order = order
         self.actor = actor
@@ -306,8 +421,8 @@ class Task(object):
     def do_step(self):
         raise NotImplementedError("Task.do_step")
         
-    def is_completed(self):
-        return self._completed
+    def iscompleted(self):
+        return self.completed
         
     def cancel(self):
         self.valid = False
@@ -324,7 +439,7 @@ class SimpleMoveTask(Task):
         actor = self.actor
         dist = actor.move_toward( self._dest, self._moveratio)
         if dist < 1:
-            self._completed = True
+            self.completed = True
             
     def cancel(self):
         pass
@@ -351,7 +466,7 @@ class ForageTask(Task):
             actor.target_workspace.release()
             actor.forage_reservation.release()
             actor.forage_reservation = None            
-            self._completed = True       
+            self.completed = True       
             
     def cancel(self):
         actor = self.actor
@@ -376,7 +491,7 @@ class DumpTask(Task):
             self.actor.game.controller.create_resource_dump(self.actor.position, self.actor.carrying)
 
         actor.carrying = None
-        self._completed = True
+        self.completed = True
 
 class ReserveStorageTask(Task):
 
@@ -388,7 +503,7 @@ class ReserveStorageTask(Task):
         actor = self.actor
         reservation = self._game.reserve_storage(actor.position, actor.carrying)
         actor.storage_reservation = reservation
-        self._completed = True
+        self.completed = True
 
 class ReserveWorkspaceTask(Task):
     def __init__(self, order, actor, structure):
@@ -402,7 +517,7 @@ class ReserveWorkspaceTask(Task):
             actor.target_workspace = self._reservation.workspace
             actor.target_workspace.reserve()
             actor.target_workspace
-            self._completed = True
+            self.completed = True
         else:
             pass
                     
@@ -423,7 +538,7 @@ class ReserveForageTask(Task):
         actor = self.actor
         if self._reservation is not None:
             actor.forage_reservation = self._reservation
-            self._completed = True
+            self.completed = True
         else:
             pass
                     
@@ -439,7 +554,7 @@ class WaitTask(Task):
         self.callback = callback
         
     def do_step(self):
-        self._completed = self.callback()
+        self.completed = self.callback()
 
 
 class SeekTask(Task):
@@ -450,7 +565,7 @@ class SeekTask(Task):
     def do_step(self):
         dist = self.actor.move_toward( self._target_obj.position, 1.0)
         if dist < 1:
-            self._completed = True
+            self.completed = True
 
 class HuntKillTask(Task):
     def __init__(self, order, actor, target):
@@ -461,7 +576,7 @@ class HuntKillTask(Task):
     def do_step(self):
         self._progress += 0.05
         if self._progress >= 1:
-            self._completed = True
+            self.completed = True
             self.actor.carrying = {'type':'meat', 'qty':1}
         
         

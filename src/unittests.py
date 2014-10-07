@@ -74,23 +74,24 @@ class ResourceStoreTest(unittest.TestCase):
         
     def test_reserve_resources(self):
         store = resource.ResourceStore(None, 10, ['stone','wood'], True, True)
+        store.set_delta('stone', 0.001)
         
         store.deposit({'type':'stone', 'qty':4})
-        self.assertEqual(store.get_available_contents('stone'), 4)        
+        self.assertAlmostEqual(store.get_available_contents('stone'), 4, delta=0.01)        
         res1 = store.reserve_resources('stone', 1)
-        self.assertEqual(store.get_available_contents('stone'), 3)
+        self.assertAlmostEqual(store.get_available_contents('stone'), 3, delta=0.01)
         res2 = store.reserve_resources('stone', 1)
-        self.assertEqual(store.get_available_contents('stone'), 2)
+        self.assertAlmostEqual(store.get_available_contents('stone'), 2, delta=0.01)
         res3 = store.reserve_resources('stone', 1)
-        self.assertEqual(store.get_available_contents('stone'), 1)        
+        self.assertAlmostEqual(store.get_available_contents('stone'), 1, delta=0.01)
         res4 = store.reserve_resources('stone', 1)
-        self.assertEqual(store.get_available_contents('stone'), 0)      
+        self.assertAlmostEqual(store.get_available_contents('stone'), 0, delta=0.01)
         res5 = store.reserve_resources('stone', 1)
-        self.assertEqual(store.get_available_contents('stone'), -1)
+        self.assertAlmostEqual(store.get_available_contents('stone'), -1, delta=0.01)
         res6 = store.reserve_resources('stone', 1)
-        self.assertEqual(store.get_available_contents('stone'), -2)
+        self.assertAlmostEqual(store.get_available_contents('stone'), -2, delta=0.01)
         res7 = store.reserve_resources('stone', 1)
-        self.assertEqual(store.get_available_contents('stone'), -3)
+        self.assertAlmostEqual(store.get_available_contents('stone'), -3, delta=0.01)
 
         self.assertIsNotNone(res1)
         self.assertIsNotNone(res2)
@@ -110,14 +111,14 @@ class ResourceStoreTest(unittest.TestCase):
         
         store.deposit({'type':'stone', 'qty':1})
         store.update()        
-        self.assertEqual(store.get_available_contents('stone'), -2)
+        self.assertAlmostEqual(store.get_available_contents('stone'), -2, delta=0.01)
         self.assertTrue(res5.ready)
         self.assertFalse(res6.ready)
         self.assertFalse(res7.ready)
         
         res1.release()
         store.update()
-        self.assertEqual(store.get_available_contents('stone'), -1)        
+        self.assertAlmostEqual(store.get_available_contents('stone'), -1, delta=0.01)        
         self.assertTrue(res6.ready)
         self.assertFalse(res7.ready)
         
@@ -649,8 +650,45 @@ class RevisedOrderTests(unittest.TestCase):
         self.assertTrue(mo.completed)
         self.assertEqual(self.actor.position, (0,0))
 
+class GameResourceSeekTest(unittest.TestCase):
+    def setUp(self):
+        pass
 
-        
+    def test_find_forage(self):
+        self.game = game.Game()
+
+        #dummy storage, this should not show up in find_forage
+        testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
+        testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
+        testobj.set_storage(1, ('stone', 'wood'))
+        self.game.add_game_object(testobj)
+        self.game.update()
+
+        self.assertIsNone(self.game.find_forage((0,0), 'stone', 1))
+
+        store1 = game.StructureObject(self.game, (100,100), (-200, 170), 1)
+        store1.target_actions = store1.target_actions.union(['mine'])
+        store1.set_reservoir(2, 'stone', 0)
+        self.game.add_game_object(store1)
+
+        store2 = game.StructureObject(self.game, (100,100), (100, 100), 1)
+        store2.target_actions = store2.target_actions.union(['mine'])
+        store2.set_reservoir(2, 'wood', 0)
+        self.game.add_game_object(store2)
+
+        target = self.game.find_forage((0,0), 'stone', 1)
+        self.assertEqual(target, store1)
+
+        target = self.game.find_forage((0,0), 'wood', 1)
+        self.assertEqual(target, store2)
+
+        store3 = game.StructureObject(self.game, (100,100), (-10, -10), 1)
+        store3.target_actions = store3.target_actions.union(['mine'])
+        store3.set_reservoir(2, 'stone', 0)
+        self.game.add_game_object(store3)
+
+        target = self.game.find_forage((0,0), 'stone', 1)
+        self.assertEqual(target, store3)
         
 def run_tests(hard_fail=False):
     res = unittest.main(module=__name__, exit=False, failfast=hard_fail)

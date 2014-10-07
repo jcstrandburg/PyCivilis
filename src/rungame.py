@@ -220,40 +220,40 @@ class TestActivity( application.Activity):
         self.iface.add_child( testwidg)
         
         #snorgle
-        testobj = HerdObject(self.game, (-150, -150))
+        '''testobj = HerdObject(self.game, (-150, -150))
         testobj.target_actions = testobj.target_actions.union(['hunt', 'domesticate'])        
         self.game.add_game_object( testobj)
         testwidg = HerdWidget(self.iface, testobj, self.assets.get('snorgle'), pygame.transform.smoothscale( self.assets.get('meat-icon'), (30,30)))
-        self.iface.add_child( testwidg)
+        self.iface.add_child( testwidg)'''
         
         #hut2
-        testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
+        '''testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(10, ('stone', 'wood', 'meat'))        
+        testobj.set_storage(7, ('stone', 'wood', 'meat'))        
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
-        self.iface.add_child( testwidg)
+        self.iface.add_child( testwidg)'''
         
         #hut
         testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(5, ('stone', 'wood'))
-        self.game.add_game_object(testobj)        
+        testobj.set_storage(1, ('stone', 'wood'))
+        self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
         
         #rock
         testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
         testobj.target_actions = testobj.target_actions.union(['mine'])
-        testobj.set_reservoir(1000, 'stone', 0)
+        testobj.set_reservoir(4, 'stone', 0)
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("rock"))
         self.iface.add_child( testwidg)
         
         #trees
         testobj = game.StructureObject(self.game, (100,100), (200, 170), 2)
-        testobj.target_actions = testobj.target_actions.union(['cut-wood'])
-        testobj.set_reservoir(5, 'wood', 0.005)
+        testobj.target_actions = testobj.target_actions.union(['mine'])
+        testobj.set_reservoir(5, 'stone', 0)
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("tree"))
         self.iface.add_child( testwidg)
