@@ -66,24 +66,23 @@ class Game(object):
     def find_forage(self, position, resource_type, qty=1):
         candidates = []
         backups = []
-        print "Attempting to find reservoir for "+str(resource_type)+"in qty "+str(qty)
         
         for x in xrange(len(self._objects)):
             obj = self._objects[x]
-            if hasattr(obj, "res_reservoir") and obj.res_storage is not None and obj.res_storage.allow_forage:
+            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.allow_forage:
                 avail = obj.res_storage.get_available_contents(resource_type)
                 if avail >= qty:
                     candidates.append( obj)
-                elif avail > 0 or obj.res_storage.regen_rate > 0:
+                elif avail > 0 or obj.res_storage.get_delta(resource_type) > 0:
                     backups.append( obj)
 
         candidates.sort(key=lambda candidate: (candidate.position-position).get_length())
-                    
+
         if ( len(candidates) > 0):
             return candidates[0]
         
         backups.sort(key=lambda candidate: (candidate.position-position).get_length())
-        
+
         if ( len(backups) > 0):
             return backups[0]        
         
@@ -265,3 +264,21 @@ class ResourcePile(StructureObject):
         StructureObject.update(self)
         if self.res_storage.get_actual_contents(None) == 0:
             self.finished = True
+
+class HerdObject(GameObject):
+    def __init__(self, gamemgr, position):
+        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), position)
+        self.dir = 1
+        self._render_state['movement'] = vector.Vec2d(0,0)
+        
+    def update(self):
+        GameObject.update(self)
+        
+        if self.position[0] > 100:
+            self.dir = -1
+        elif self.position[0] < -100:
+            self.dir = 1
+
+        move_vec = vector.Vec2d(self.dir*1.5,self.dir*2)
+        self._render_state['movement'] = move_vec
+        self.position += move_vec

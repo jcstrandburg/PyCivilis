@@ -449,7 +449,7 @@ class MapWidget(BaseWidget):
         if event.type == MOUSEBUTTONDOWN and event.button == 3:
             sel = self.game.selected_obj
             if sel is not None and hasattr(sel, "set_order"):
-                sel.set_order( actor.MoveOrder(sel,self.game,event.gamepos))            
+                sel.set_order( actor.SimpleMoveOrder(sel, event.gamepos))            
                 return True
         return BaseWidget._self_handle_event(self, event)
             
@@ -883,3 +883,75 @@ class StructWidget(SpriteWidget):
                 offset += 1
                 
         return panel
+
+class ResourcePileWidget( SpriteWidget):
+    def _draw_self(self, viewport, disp_rect):
+        SpriteWidget._draw_self(self, viewport, disp_rect)
+        bar_rect = disp_rect.copy()
+        bar_rect.h = 5
+        bar_rect.bottom = disp_rect.bottom
+        rstore = self._game_object.res_storage
+        bar_rect.w = int(bar_rect.w * (rstore.get_actual_contents(None)/rstore.get_capacity()))
+        bar_rect.w = max(1, bar_rect.w)
+        pygame.draw.rect(viewport.surface, (255,0,0), bar_rect, 0)
+
+    def get_selection_menu(self):
+        panel = interface.Panel(self.manager, (0,0,200,600))
+        headline = interface.CompositeTextGenerator( (interface.StaticText("Available: "), interface.LambdaTextGenerator(lambda: self._game_object.get_available_space(None))))
+        text = interface.TextLabel(self.manager, (30, 30), 'medfont', headline)
+        panel.add_child( text)
+        
+        store = self._game_object.res_storage
+        if store is not None:
+            offset = 1
+            for key in store._accepts:
+                text = interface.TextLabel(self.manager, (30, 30+offset*30), 'medfont', interface.CompositeTextGenerator([interface.StaticText(key), interface.LambdaTextGenerator(lambda bound_key=key: store.get_actual_contents(bound_key))]))
+                panel.add_child( text)
+                offset += 1
+
+        return panel
+
+class ActorWidget(SpriteWidget):
+    
+    def __init__(self, manager, obj, img):
+        carry_rect = pygame.Rect(8,40,30,30)
+        self.carry_widget = SpriteWidget(manager, carry_rect, None)
+        
+        SpriteWidget.__init__(self, manager, obj, img)
+        self.add_child(self.carry_widget)        
+    
+    def _draw_self(self, viewport, disp_rect):
+        load = self._game_object.carrying
+        if load is not None:
+            color = (load['qty']*200, 0, 0)
+            #pygame.draw.rect( viewport.surface, color, disp_rect, 0)
+            img = self._game_object.game.resource_types.find(load['type']).sprite
+            self.carry_widget.img = img            
+        else:
+            self.carry_widget.img = None
+        SpriteWidget._draw_self(self, viewport, disp_rect)
+
+    def get_selection_menu(self):
+        print 'Carrying: '+str(self._game_object.carrying)
+        return None
+
+class HerdWidget(SpriteWidget):
+    def __init__(self, manager, gameobj, sprite, meatsicle_sprite):
+        SpriteWidget.__init__(self, manager, gameobj, sprite)
+        self.meatsicles = []
+        for i in xrange(3):
+            rect = pygame.Rect(0,0,30,30)
+            rect.center = ((i+1)*50, 0)
+            meatsicle = SpriteWidget(manager, rect, meatsicle_sprite)
+            self.add_child(meatsicle)
+            self.meatsicles.append(meatsicle)
+            
+    def update(self, viewport, mpos):
+        SpriteWidget.update(self, viewport, mpos)
+        for i in xrange(len(self.meatsicles)):
+            ms = self.meatsicles[i]
+            pos = self.game_object._render_state['movement']*-((i+1)*5) +  (self._base_rect.w/2, self._base_rect.h)
+            ms._base_rect.center = pos
+            ms.update_rect()
+
+

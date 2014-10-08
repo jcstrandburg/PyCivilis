@@ -23,96 +23,6 @@ class CivilisApp( application.Application):
         self._object_id += 1
         return self._object_id-1
 
-class ActorWidget( interface.SpriteWidget):
-    
-    def __init__(self, manager, obj, img):
-        carry_rect = pygame.Rect(8,40,30,30)
-        self.carry_widget = interface.SpriteWidget(manager, carry_rect, None)
-        
-        interface.SpriteWidget.__init__(self, manager, obj, img)
-        self.add_child(self.carry_widget)        
-    
-    def _draw_self(self, viewport, disp_rect):
-        load = self._game_object.carrying
-        if load is not None:
-            color = (load['qty']*200, 0, 0)
-            #pygame.draw.rect( viewport.surface, color, disp_rect, 0)
-            img = self._game_object.game.resource_types.find(load['type']).sprite
-            self.carry_widget.img = img            
-        else:
-            self.carry_widget.img = None
-        interface.SpriteWidget._draw_self(self, viewport, disp_rect)
-
-    def get_selection_menu(self):
-        print 'Carrying: '+str(self._game_object.carrying)
-        return None
-
-class HerdWidget(interface.SpriteWidget):
-    def __init__(self, manager, gameobj, sprite, meatsicle_sprite):
-        interface.SpriteWidget.__init__(self, manager, gameobj, sprite)
-        self.meatsicles = []
-        for i in xrange(3):
-            rect = pygame.Rect(0,0,30,30)
-            rect.center = ((i+1)*50, 0)
-            meatsicle = interface.SpriteWidget(manager, rect, meatsicle_sprite)
-            self.add_child(meatsicle)
-            self.meatsicles.append(meatsicle)
-            
-    def update(self, viewport, mpos):
-        interface.SpriteWidget.update(self, viewport, mpos)
-        for i in xrange(len(self.meatsicles)):
-            ms = self.meatsicles[i]
-            pos = self.game_object._render_state['movement']*-((i+1)*5) +  (self._base_rect.w/2, self._base_rect.h)
-            ms._base_rect.center = pos
-            ms.update_rect()
-
-    
-class HerdObject(game.GameObject):
-    def __init__(self, gamemgr, position):
-        game.GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), position)
-        self.dir = 1
-        self._render_state['movement'] = vector.Vec2d(0,0)
-        
-    def update(self):
-        game.GameObject.update(self)
-        
-        if self.position[0] > 100:
-            self.dir = -1
-        elif self.position[0] < -100:
-            self.dir = 1
-
-        move_vec = vector.Vec2d(self.dir*1.5,self.dir*2)
-        self._render_state['movement'] = move_vec
-        self.position += move_vec
-
-
-class ResourcePileWidget( interface.SpriteWidget):
-    def _draw_self(self, viewport, disp_rect):
-        interface.SpriteWidget._draw_self(self, viewport, disp_rect)
-        bar_rect = disp_rect.copy()
-        bar_rect.h = 5
-        bar_rect.bottom = disp_rect.bottom
-        rstore = self._game_object.res_storage
-        bar_rect.w = int(bar_rect.w * (rstore.get_actual_contents(None)/rstore.get_capacity()))
-        bar_rect.w = max(1, bar_rect.w)
-        pygame.draw.rect(viewport.surface, (255,0,0), bar_rect, 0)
-
-    def get_selection_menu(self):
-        panel = interface.Panel(self.manager, (0,0,200,600))
-        headline = interface.CompositeTextGenerator( (interface.StaticText("Available: "), interface.LambdaTextGenerator(lambda: self._game_object.get_available_space(None))))
-        text = interface.TextLabel(self.manager, (30, 30), 'medfont', headline)
-        panel.add_child( text)
-        
-        store = self._game_object.res_storage
-        if store is not None:
-            offset = 1
-            for key in store._accepts:
-                text = interface.TextLabel(self.manager, (30, 30+offset*30), 'medfont', interface.CompositeTextGenerator([interface.StaticText(key), interface.LambdaTextGenerator(lambda bound_key=key: store.get_actual_contents(bound_key))]))
-                panel.add_child( text)
-                offset += 1
-
-        return panel
-
 
 class DictEvent(object):
     '''This is a big ugly hack designed to force pygame events to have dictionaries so you can add new attributes to them.'''
@@ -179,16 +89,17 @@ class TestActivity( application.Activity):
         self.controller.set_fps_cap( 50)
         self.vp = viewport.Viewport( self.controller.screen)
         self.vp.transform.set_rotation_interval( 5)
+
+        self.assets = assetmanager.AssetManager()
+        self.assets.load_set("res/assets.txt")
         
         self.font = pygame.font.Font(None, 24)
         self.iface = interface.InterfaceManager(self)
         self.game = game.Game()
-        self.game.controller = self
+        self.director = GameDirector(self.game, self.iface, self.assets)
+        self.game.director = self.director
         self.ticker = 1
         self.options = 5
-
-        self.assets = assetmanager.AssetManager()
-        self.assets.load_set("res/assets.txt")
         
         self.game.resource_types = self.make_resource_tree()
         
@@ -204,58 +115,58 @@ class TestActivity( application.Activity):
         testobj = actor.Actor(self.game, (-200, 0))
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
+        testwidg = interface.ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
 
         #person2
         testobj = actor.Actor(self.game, (-100, -200))
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
+        testwidg = interface.ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
         
         #person3
         testobj = actor.Actor(self.game, (-150, -200))
         testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
         self.game.add_game_object(testobj)        
-        testwidg = ActorWidget( self.iface, testobj, self.assets.get("person"))
+        testwidg = interface.ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
         
         #snorgle
-        testobj = HerdObject(self.game, (-150, -150))
+        testobj = game.HerdObject(self.game, (-150, -150))
         testobj.target_actions = testobj.target_actions.union(['hunt', 'domesticate'])        
         self.game.add_game_object( testobj)
-        testwidg = HerdWidget(self.iface, testobj, self.assets.get('snorgle'), pygame.transform.smoothscale( self.assets.get('meat-icon'), (30,30)))
+        testwidg = interface.HerdWidget(self.iface, testobj, self.assets.get('snorgle'), pygame.transform.smoothscale( self.assets.get('meat-icon'), (30,30)))
         self.iface.add_child( testwidg)
         
         #hut2
-        testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
+        '''testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(10, ('stone', 'wood', 'meat'))        
+        testobj.set_storage(7, ('stone', 'wood', 'meat'))        
         self.game.add_game_object(testobj)        
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
-        self.iface.add_child( testwidg)
+        self.iface.add_child( testwidg)'''
         
         #hut
         testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(5, ('stone', 'wood'))
-        self.game.add_game_object(testobj)        
+        testobj.set_storage(1, ('stone', 'wood', 'meat'))
+        self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
         self.iface.add_child( testwidg)
         
         #rock
         testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
         testobj.target_actions = testobj.target_actions.union(['mine'])
-        testobj.set_reservoir(1000, 'stone', 0)
+        testobj.set_reservoir(4, 'stone', 0)
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("rock"))
         self.iface.add_child( testwidg)
         
         #trees
         testobj = game.StructureObject(self.game, (100,100), (200, 170), 2)
-        testobj.target_actions = testobj.target_actions.union(['cut-wood'])
-        testobj.set_reservoir(5, 'wood', 0.005)
+        testobj.target_actions = testobj.target_actions.union(['mine'])
+        testobj.set_reservoir(5, 'stone', 0)
         self.game.add_game_object(testobj)
         testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("tree"))
         self.iface.add_child( testwidg)
@@ -268,7 +179,7 @@ class TestActivity( application.Activity):
         storage.res_storage.set_delta(resource['type'], -.001)
         self.game.add_game_object(storage)
         resource = self.game.resource_types.find(resource['type'])
-        widget = ResourcePileWidget(self.iface, storage, resource.sprite)
+        widget = interface.ResourcePileWidget(self.iface, storage, resource.sprite)
         self.iface.add_child( widget)
         
     def update(self):
@@ -326,6 +237,27 @@ class TestActivity( application.Activity):
             elif event.key == K_ESCAPE:
                 self.finish()
                 
+
+class GameDirector(object):
+    '''Generic factory/game state mutator'''
+
+    def __init__(self, game_mgr, iface_mgr, asset_mgr):
+        self.game = game_mgr
+        self.iface = iface_mgr
+        self.assets = asset_mgr
+
+    def create_resource_dump(self, pos, resource):
+        storage = game.ResourcePile(self.game, (30,30), pos, 1)
+        storage.target_actions = storage.target_actions.union(('store'))
+        storage.set_storage(resource['qty'], [resource['type']])
+        storage.res_storage.deposit( resource)
+        storage.res_storage.set_delta(resource['type'], -.001)
+        self.game.add_game_object(storage)
+        resource = self.game.resource_types.find(resource['type'])
+        widget = interface.ResourcePileWidget(self.iface, storage, resource.sprite)
+        self.iface.add_child( widget)
+
+#    def add_structure(self, position, workspaces, actions, 
                 
 def run():
 

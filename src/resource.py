@@ -81,6 +81,12 @@ class ResourceStore(object):
     def set_delta(self, tag, delta):
         self._deltas[tag] = delta
 
+    def get_delta(self, tag):
+        try:
+            return self._deltas[tag]
+        except KeyError:
+            return 0
+
     def withdraw(self, tag, amount):
         try:
             qty = min(self.contents[tag], amount)
@@ -124,17 +130,22 @@ class ResourceStore(object):
 
     def reserve_resources(self, tag, amount):
         if tag is None:
-            tag = self.resource_type
+            raise ValueError("Cannot reserve resource None")
 
         if self.accepts(tag):
             qty = self.get_available_contents(tag)
-            res = ResourceReservation(self.structure, tag, amount)
-            self._resource_reservations.append(res)
+            regen = self.get_delta(tag)
+
+            if qty > 0 or regen > 0:
+                res = ResourceReservation(self.structure, tag, amount)
+                self._resource_reservations.append(res)
             
-            if qty >= amount:
-                res.make_ready()
+                if qty >= amount:
+                    res.make_ready()
                 
-            return res
+                return res
+            else:
+                return None
         else:
             return None
 
