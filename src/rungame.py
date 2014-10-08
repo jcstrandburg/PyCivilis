@@ -65,6 +65,7 @@ class HerdWidget(interface.SpriteWidget):
             pos = self.game_object._render_state['movement']*-((i+1)*5) +  (self._base_rect.w/2, self._base_rect.h)
             ms._base_rect.center = pos
             ms.update_rect()
+
     
 class HerdObject(game.GameObject):
     def __init__(self, gamemgr, position):
@@ -83,7 +84,7 @@ class HerdObject(game.GameObject):
         move_vec = vector.Vec2d(self.dir*1.5,self.dir*2)
         self._render_state['movement'] = move_vec
         self.position += move_vec
-    
+
 
 class ResourcePileWidget( interface.SpriteWidget):
     def _draw_self(self, viewport, disp_rect):
@@ -111,6 +112,7 @@ class ResourcePileWidget( interface.SpriteWidget):
                 offset += 1
 
         return panel
+
 
 class DictEvent(object):
     '''This is a big ugly hack designed to force pygame events to have dictionaries so you can add new attributes to them.'''
