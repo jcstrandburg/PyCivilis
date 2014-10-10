@@ -265,6 +265,7 @@ class ResourcePile(StructureObject):
         if self.res_storage.get_actual_contents(None) == 0:
             self.finished = True
 
+
 class HerdObject(GameObject):
     def __init__(self, gamemgr, position):
         GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), position)
@@ -282,3 +283,11 @@ class HerdObject(GameObject):
         move_vec = vector.Vec2d(self.dir*1.5,self.dir*2)
         self._render_state['movement'] = move_vec
         self.position += move_vec
+        
+        
+class ScavengerObject(GameObject):
+    def __init__(self, gamemgr, position, herd_follow):
+        self._herd_follow = herd_follow
+        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), position)
+        self.dir = 1
+        self._render_state['movement'] = vector.Vec2d(0,0)

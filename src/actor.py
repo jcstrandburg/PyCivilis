@@ -3,6 +3,7 @@ import random
 import game
 import vector
 
+
 class Actor(game.GameObject):
     """Base class for all game objects that follow orders."""
     
@@ -30,15 +31,6 @@ class Actor(game.GameObject):
             self._order.do_step()
 
         if self._order is None or self._order.completed or not self._order.valid:
-            print self._order
-            if self._order is None:
-                print "Order is none"
-            elif self._order.completed:
-                print "order is completed: "+self._order.status
-            elif self._order.valid is False:
-                print "order is not valid: "+self._order.status
-            else:
-                print "lolwat"
             self.set_order( IdleOrder(self))
 
     def set_order(self, order):
@@ -55,6 +47,7 @@ class Actor(game.GameObject):
     def deselect(self):
         game.GameObject.deselect(self)
 
+
 class BaseOrder(object):
     def __init__(self, actor):
         self.status = ""
@@ -69,9 +62,11 @@ class BaseOrder(object):
     def cancel(self):
         self.valid = False
 
+
 class DummyOrder(BaseOrder):
     def do_step(self):
         self.completed = True
+
 
 class StatefulSuperOrder(BaseOrder):
     def __init__(self, actor, state=None):
@@ -113,6 +108,7 @@ class StatefulSuperOrder(BaseOrder):
             elif not self._state_order.valid:
                 self._fail_state(self._state_name)
 
+
 class SimpleMoveOrder(BaseOrder):
     def __init__(self, actor, targ_pos, move_rate=1.0):
         BaseOrder.__init__(self, actor)
@@ -123,7 +119,6 @@ class SimpleMoveOrder(BaseOrder):
         dist = self.actor.move_toward( self.targ_pos, self.move_rate)
         if dist < 1:
             self.completed = True
-
 
 
 class IdleOrder(StatefulSuperOrder):
@@ -138,6 +133,7 @@ class IdleOrder(StatefulSuperOrder):
 
     def complete_idle(self):
         self.set_state('idle')
+
 
 class ExtractResourceOrder(BaseOrder):
     """Task for simple foraging"""    
@@ -183,6 +179,7 @@ class DepositOrder(BaseOrder):
         actor.carrying = None
         self.completed = True
 
+
 class ReserveStorageOrder(BaseOrder):
 
     def __init__(self, actor):
@@ -194,6 +191,7 @@ class ReserveStorageOrder(BaseOrder):
         reservation = self._game.reserve_storage(actor.position, actor.carrying)
         actor.storage_reservation = reservation
         self.completed = True
+
 
 class ReserveWorkspaceOrder(BaseOrder):
     def __init__(self, actor, structure):
@@ -212,8 +210,9 @@ class ReserveWorkspaceOrder(BaseOrder):
             pass
                     
     def cancel(self):
-        Task.cancel(self)
+        BaseOrder.cancel(self)
         self._reservation.release()
+ 
         
 class ReserveForageOrder(BaseOrder):
     def __init__(self, actor, structure, resource_type):
@@ -226,7 +225,6 @@ class ReserveForageOrder(BaseOrder):
         
     def do_step(self):
         actor = self.actor
-        print "doing step"
         if self._reservation is not None:
             actor.forage_reservation = self._reservation
             self.completed = True
@@ -238,6 +236,7 @@ class ReserveForageOrder(BaseOrder):
         self.actor.forage_reservation = None
         if self._reservation is not None:
             self._reservation.release()
+
 
 class WaitOrder(BaseOrder):
     def __init__(self, actor, callback):
@@ -258,6 +257,7 @@ class SeekOrder(BaseOrder):
         if dist < 1:
             self.completed = True
 
+
 class HuntKillOrder(BaseOrder):
     def __init__(self, actor, target):
         BaseOrder.__init__(self, actor)
@@ -271,9 +271,6 @@ class HuntKillOrder(BaseOrder):
             self.actor.carrying = {'type':'meat', 'qty':1}
 
 
-
-
-
 class ForageOrder(StatefulSuperOrder): 
 
     def __init__(self, actor, target, resource_type):
@@ -282,17 +279,14 @@ class ForageOrder(StatefulSuperOrder):
         StatefulSuperOrder.__init__(self, actor, "reserve_forage")
         
     def start_reserve_forage(self):
-        print "start reserve forage"
         return ReserveForageOrder(self.actor, self._target, self.resource_type)
 
     def complete_reserve_forage(self):
-        print "complete reserve forage"
         self.set_state("move_to_forage")
 
     def fail_reserve_forage(self):
         self._target = self.game.find_forage(self._target.position, self.resource_type, 1)
         if self._target is None:
-            print "Got no target!!!"
             self.cancel()
         else:
             self.set_state("reserve_forage")
@@ -305,42 +299,36 @@ class ForageOrder(StatefulSuperOrder):
         return SimpleMoveOrder(self.actor, targetpos)    
 
     def complete_move_to_forage(self):
-        print "move to forage"
         self.set_state("wait_for_forage_reservation")
 
     def start_wait_for_forage_reservation(self):
         return WaitOrder(self.actor, lambda: self.actor.forage_reservation.ready)
 
     def complete_wait_for_forage_reservation(self):
-        print "complete wait for forage reservation"
         self.set_state("reserve_forage_workspace")
 
     def start_reserve_forage_workspace(self):
         return ReserveWorkspaceOrder(self.actor, self._target)
 
     def complete_reserve_forage_workspace(self):
-        print "complete reserve forage workspace"
         self.set_state("move_to_workspace")
 
     def start_move_to_workspace(self):
         return SimpleMoveOrder(self.actor, self.actor.target_workspace.position)
 
     def complete_move_to_workspace(self):
-        print "complete move to workspace"
         self.set_state("do_forage")
 
     def start_do_forage(self):
         return ExtractResourceOrder(self.actor,self._target, self.resource_type)
 
     def complete_do_forage(self):
-        print "complete do do forage"
         self.set_state("reserve_storage")
 
     def start_reserve_storage(self):
         return ReserveStorageOrder(self.actor)
 
     def complete_reserve_storage(self):
-        print "complete reserve storage"
         self.set_state("move_to_storage")
 
     def start_move_to_storage(self):
@@ -353,23 +341,13 @@ class ForageOrder(StatefulSuperOrder):
             return SimpleMoveOrder(self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
 
     def complete_move_to_storage(self):
-        print "complete move to storage"
         self.set_state("store_resources")
 
     def start_store_resources(self):
         return DepositOrder(self.actor)
 
     def complete_store_resources(self):
-        print "complete store resources"
         self.set_state("reserve_forage")
-
-    def start_seek_new_reservoir(self):
-        #return IDKWHAT
-        raise "IDK WHAT TO DO HERE YET"
-        return DummyOrder(self.actor)
-
-    def complete_seek_new_reservoir(self):
-        self.set_state("move_to_forage")
     
     def cancel(self):
         StatefulSuperOrder.cancel(self)
@@ -391,35 +369,27 @@ class HuntOrder(StatefulSuperOrder):
         self.set_state("seek")
 
     def start_seek(self):
-        print "Starting seek"
         return SeekOrder(self.actor, self._target)
 
     def complete_seek(self):
-        print "Completed seek"
         self.set_state("reserve")
 
     def start_reserve(self):
-        print "Starting reserve"
         return WaitOrder(self.actor, lambda: True)
 
     def complete_reserve(self):
-        print "Completed reserve"
         self.set_state("kill")
 
     def start_kill(self):
-        print "Starting kill"
         return HuntKillOrder(self.actor, self._target)
 
     def complete_kill(self):
-        print "Completed kill"
         self.set_state("reserve_storage")
 
     def start_reserve_storage(self):
-        print "Starting reserve storage"
         return ReserveStorageOrder(self.actor)
 
     def complete_reserve_storage(self):
-        print "Completed reserve storage"
         self.set_state("seek_storage")
 
     def start_seek_storage(self):
@@ -432,21 +402,16 @@ class HuntOrder(StatefulSuperOrder):
             return SimpleMoveOrder(self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
 
     def complete_seek_storage(self):
-        print "Completed seek storage"
         self.set_state("dump_storage")
 
     def start_dump_storage(self):
-        print "Starting dump storage"
         return DepositOrder(self.actor)
 
     def complete_dump_storage(self):
-        print "Complete dump storage"
         self.set_state("seek")
 
 
 
-
-'''we need this, don't get rid of it'''
 class OrderBuilder(object):
     def __init__(self, selected, target):
         self.selected = selected

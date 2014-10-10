@@ -156,20 +156,12 @@ class TestActivity( application.Activity):
         self.iface.add_child( testwidg)
         
         #rock
-        testobj = game.StructureObject(self.game, (100,100), (-200, 170), 1)
-        testobj.target_actions = testobj.target_actions.union(['mine'])
-        testobj.set_reservoir(4, 'stone', 0)
-        self.game.add_game_object(testobj)
-        testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("rock"))
-        self.iface.add_child( testwidg)
+        testobj = self.director.add_simple_structure( (-200, 170), 1, ('mine',), self.assets.get('rock'))
+        testobj.set_reservoir(4, 'stone', 0.001)
         
         #trees
-        testobj = game.StructureObject(self.game, (100,100), (200, 170), 2)
-        testobj.target_actions = testobj.target_actions.union(['mine'])
-        testobj.set_reservoir(5, 'stone', 0)
-        self.game.add_game_object(testobj)
-        testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("tree"))
-        self.iface.add_child( testwidg)
+        testobj = self.director.add_simple_structure( (200,170), 2, ('cut-wood',), self.assets.get('tree'))
+        testobj.set_reservoir(5, 'wood', 0.01)
 
     def create_resource_dump(self, pos, resource):
         storage = game.ResourcePile(self.game, (30,30), pos, 1)
@@ -257,8 +249,26 @@ class GameDirector(object):
         widget = interface.ResourcePileWidget(self.iface, storage, resource.sprite)
         self.iface.add_child( widget)
 
-#    def add_structure(self, position, workspaces, actions, 
-                
+    def add_simple_structure(self, position, num_workspaces, actions, sprite):
+        obj = game.StructureObject(self.game, (100,100), position, num_workspaces)
+        obj.target_actions = obj.target_actions.union(actions)
+        self.game.add_game_object(obj)
+        widget = interface.StructWidget( self.iface, obj, sprite)
+        self.iface.add_child( widget)
+        return obj
+    
+    def add_tagged_structure(self, position, tag):
+        if tag == 'rock':
+            obj = self.director.add_simple_structure( position, 1, ('mine',), self.assets.get('rock'))
+            obj.set_reservoir(5, 'stone', 0.001)            
+        elif tag == 'tree':
+            obj = self.director.add_simple_structure( position, 2, ('cut-wood',), self.assets.get('tree'))
+            obj.set_reservoir(5, 'wood', 0.001)                
+        elif tag == 'hut':
+            obj = self.add_simple_structure( position, 4, ('butcher', 'enlist'), self.assets.get('hut'))
+            obj.set_storage(10, ('wood', 'stone', 'meat'))
+
+
 def run():
 
     app = CivilisApp()
