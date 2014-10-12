@@ -20,6 +20,7 @@ image tree tree.png
 image rock rocks.png
 image hut hut.png
 image snorgle snorgle.png
+image baby-snorgle baby-snorgle.png
 image workspace campfire.png
 
 image stone-icon stone-res.png

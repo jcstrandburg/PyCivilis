@@ -1,4 +1,5 @@
 import pygame, math
+import random
 from collections import deque
 
 import vector
@@ -265,25 +266,100 @@ class ResourcePile(StructureObject):
         if self.res_storage.get_actual_contents(None) == 0:
             self.finished = True
 
+class HuntingReservation(reservation.Reservation):
+    def __init__(self):
+        self.animal = None
+        reservation.Reservation.__init__(self)
+        
+    def make_ready(self, animal):
+        self.animal = animal
+        reservation.Reservation.make_ready(self)
+        
+
+class HerdMember(GameObject):
+    def __init__(self, leader):
+        self.leader = leader
+        self.target = leader.position
+        self.move_speed = 1.1
+        GameObject.__init__(self, leader.game, pygame.Rect(0,0,30,30), self.leader.position)
+        self._render_state['adult'] = self.adult = False
+        
+    def update(self):
+        diff = self.target - self.position
+        if diff.length <= self.move_speed:
+            x = 175
+            self.target = self.leader.position + (random.uniform(-x,x), random.uniform(-x,x))
+        else:
+            self.position = self.position.interpolate_to( self.target, self.move_speed/diff.length)
+            
+    def mature(self):
+        self._render_state['adult'] = self.adult = True           
 
 class HerdObject(GameObject):
-    def __init__(self, gamemgr, position):
-        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), position)
+    def __init__(self, gamemgr, circuit):
+        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), circuit[0])
         self.dir = 1
+        self.move_speed = 0.9
+        self.circuit = circuit
+        self.circ_node = 0
         self._render_state['movement'] = vector.Vec2d(0,0)
+        self.grow_timer = 0
+        self.spawn_timer = 0
+        self.followers = []
+        self.reservations = []
         
     def update(self):
         GameObject.update(self)
-        
-        if self.position[0] > 100:
-            self.dir = -1
-        elif self.position[0] < -100:
-            self.dir = 1
 
-        move_vec = vector.Vec2d(self.dir*1.5,self.dir*2)
-        self._render_state['movement'] = move_vec
-        self.position += move_vec
+        diff = self.circuit[self.circ_node] - self.position
+        if diff.length <= self.move_speed:
+            self.circ_node = (self.circ_node + 1)%len(self.circuit)
+        else:
+            self.position = self.position.interpolate_to( self.circuit[self.circ_node], self.move_speed/diff.length)
+
+        '''do regeneration'''            
+        self.followers = [follower for follower in self.followers if not follower.finished]
         
+        if len( self.followers) < 3:
+            self.spawn_timer += 1
+            if self.spawn_timer > 150:
+                self.add_follower(self.game.director.add_herd_follower(self))
+                self.spawn_timer = 0
+                
+        if self.get_meat() < 3:
+            self.grow_timer += 1
+            if self.grow_timer > 500:
+                self.grow_timer = 0
+                for follower in self.followers:
+                    if not follower.adult:
+                        follower.mature()
+                        break
+                    
+        if len(self.reservations) > 0:
+            if not self.reservations[0].valid:
+                del self.reservations[0] 
+            elif not self.reservations[0].ready:
+                for follower in self.followers:
+                    if follower.adult:
+                        self.reservations[0].make_ready(follower)
+            
+
+    def add_follower(self, follower):
+        self.followers.append(follower)
+
+    def get_meat(self):
+        meat = 0
+        for follower in self.followers:
+            if follower.adult:
+                meat += 1
+                
+        return meat
+    
+    def reserve_animal(self):
+        res = HuntingReservation()
+        self.reservations.append(res)
+        return res
+                
         
 class ScavengerObject(GameObject):
     def __init__(self, gamemgr, position, herd_follow):

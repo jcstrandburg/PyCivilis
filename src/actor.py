@@ -257,6 +257,26 @@ class SeekOrder(BaseOrder):
         if dist < 1:
             self.completed = True
 
+class StalkOrder(BaseOrder):
+    def __init__(self, actor, target):
+        BaseOrder.__init__(self, actor)
+        self._target = target
+        self._suborder = None
+        
+    def do_step(self):
+        print "stalking"
+        
+        if self.actor.hunt_reservation.ready:
+            self.completed = True
+            return
+        
+        if self._suborder is None or self._suborder.completed:
+            position = self._target.position + (random.uniform(-100,100), random.uniform(-100,100))
+            self._suborder = SimpleMoveOrder(self.actor, position, 0.25)
+                
+        if self._suborder is not None:
+            self._suborder.do_step()
+
 
 class HuntKillOrder(BaseOrder):
     def __init__(self, actor, target):
@@ -265,10 +285,16 @@ class HuntKillOrder(BaseOrder):
         self._progress = 0
 
     def do_step(self):
-        self._progress += 0.05
-        if self._progress >= 1:
-            self.completed = True
-            self.actor.carrying = {'type':'meat', 'qty':1}
+        diff = self._target.position - self.actor.position
+        dist = diff.length
+        if dist < 20:
+            self._progress += 0.05
+            if self._progress >= 1:
+                self.completed = True
+                self.actor.carrying = {'type':'meat', 'qty':1}
+                self._target.finished = True
+        else:
+            self.actor.move_toward( self._target.position, 1.0)
 
 
 class ForageOrder(StatefulSuperOrder): 
@@ -372,18 +398,20 @@ class HuntOrder(StatefulSuperOrder):
         return SeekOrder(self.actor, self._target)
 
     def complete_seek(self):
-        self.set_state("reserve")
+        self.set_state("reserve_and_stalk")
 
-    def start_reserve(self):
-        return WaitOrder(self.actor, lambda: True)
+    def start_reserve_and_stalk(self):
+        self.actor.hunt_reservation = self._target.reserve_animal()
+        return StalkOrder(self.actor, self._target)
 
-    def complete_reserve(self):
+    def complete_reserve_and_stalk(self):
         self.set_state("kill")
 
     def start_kill(self):
-        return HuntKillOrder(self.actor, self._target)
+        return HuntKillOrder(self.actor, self.actor.hunt_reservation.animal)
 
     def complete_kill(self):
+        self.actor.hunt_reservation.release()
         self.set_state("reserve_storage")
 
     def start_reserve_storage(self):
@@ -409,6 +437,11 @@ class HuntOrder(StatefulSuperOrder):
 
     def complete_dump_storage(self):
         self.set_state("seek")
+        
+    def cancel(self):
+        if hasattr( self.actor, "hunt_reservation") and self.actor.hunt_reservation is not None:
+            self.actor.hunt_reservation.release()
+            self.actor.hunt_reseravation = None
 
 
 
@@ -426,6 +459,6 @@ class OrderBuilder(object):
         elif tag == "cut-wood":
             self.selected.set_order( ForageOrder(self.selected, self.target, 'wood'))
         elif tag == "hunt":
-            self.selected.set_order( HuntOrder(self.selected, self.target))
+            self.selected.set_order( HuntOrder(self.selected, self.target.leader))
         else:
             raise ValueError('Unrecognized tag '+str(tag))

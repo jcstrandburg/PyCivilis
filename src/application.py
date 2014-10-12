@@ -21,7 +21,7 @@ class Application(object):
         pygame.init()
         self.clock = pygame.time.Clock()
         self.clock.tick()        
-        self.screen = pygame.display.set_mode((800, 600))
+        self.screen = pygame.display.set_mode((800, 800))
         pygame.mixer.init()        
 
     def set_fps_cap(self, cap):

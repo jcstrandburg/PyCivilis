@@ -436,14 +436,20 @@ class MapWidget(BaseWidget):
     _update_handler = BaseWidget._opaque_update
 
     def __init__(self, manager, game):
-        BaseWidget.__init__(self, manager, (-360,-360,738,738), LAYER_BASE)
+        BaseWidget.__init__(self, manager, (-1600,-1600,3200,3200), LAYER_BASE)
         self._selectable = False
         self.img = manager.controller.assets.get("ground")
         self.game = game
 
     def _draw_self(self, viewport, disp_rect):
         img = viewport.transform.scale(self.img, viewport.scale)
-        viewport.surface.blit( img, disp_rect)
+        dim = img.get_rect()
+        
+        for u in xrange(disp_rect.w/dim.w):
+            for v in xrange(disp_rect.h/dim.h):
+                viewport.surface.blit( img, (disp_rect.x + u*dim.w, disp_rect.y + v*dim.h))
+        
+        pygame.draw.rect(viewport.surface, (0,0,0), disp_rect, 2)
         
     def _self_handle_event(self, event):
         if event.type == MOUSEBUTTONDOWN and event.button == 3:
@@ -888,7 +894,7 @@ class ResourcePileWidget( SpriteWidget):
     def _draw_self(self, viewport, disp_rect):
         SpriteWidget._draw_self(self, viewport, disp_rect)
         bar_rect = disp_rect.copy()
-        bar_rect.h = 5
+        bar_rect.h = 5*viewport.scale
         bar_rect.bottom = disp_rect.bottom
         rstore = self._game_object.res_storage
         bar_rect.w = int(bar_rect.w * (rstore.get_actual_contents(None)/rstore.get_capacity()))
@@ -935,23 +941,37 @@ class ActorWidget(SpriteWidget):
         print 'Carrying: '+str(self._game_object.carrying)
         return None
 
+
+class HerdMemberWidget(SpriteWidget):
+    def __init__(self, manager, gameobj, sprite1, sprite2):
+        SpriteWidget.__init__(self, manager, gameobj, sprite1)
+        self.altsprite = sprite2
+
+    def _draw_self(self, viewport, disp_rect):
+        if self.game_object._render_state['adult']:
+            SpriteWidget._draw_self(self, viewport, disp_rect)
+        else:
+            img = viewport.transform.scale(self.altsprite, viewport.scale)
+            viewport.surface.blit(img, disp_rect)
+    
+    def get_selection_menu(self):
+        panel = Panel(self.manager, (0,0,200,600))
+        headline = CompositeTextGenerator( (StaticText("Valid: "), LambdaTextGenerator(lambda: self._game_object.finished)))
+        text = TextLabel(self.manager, (30, 30), 'medfont', headline)
+        panel.add_child( text)
+
+        return panel
+    
+
 class HerdWidget(SpriteWidget):
-    def __init__(self, manager, gameobj, sprite, meatsicle_sprite):
+    def __init__(self, manager, gameobj, sprite):
         SpriteWidget.__init__(self, manager, gameobj, sprite)
-        self.meatsicles = []
-        for i in xrange(3):
-            rect = pygame.Rect(0,0,30,30)
-            rect.center = ((i+1)*50, 0)
-            meatsicle = SpriteWidget(manager, rect, meatsicle_sprite)
-            self.add_child(meatsicle)
-            self.meatsicles.append(meatsicle)
             
-    def update(self, viewport, mpos):
-        SpriteWidget.update(self, viewport, mpos)
-        for i in xrange(len(self.meatsicles)):
-            ms = self.meatsicles[i]
-            pos = self.game_object._render_state['movement']*-((i+1)*5) +  (self._base_rect.w/2, self._base_rect.h)
-            ms._base_rect.center = pos
-            ms.update_rect()
+    def get_selection_menu(self):
+        panel = Panel(self.manager, (0,0,200,600))
+        headline = CompositeTextGenerator( (StaticText("Meat: "), LambdaTextGenerator(lambda: self._game_object.get_meat())))
+        text = TextLabel(self.manager, (30, 30), 'medfont', headline)
+        panel.add_child( text)
 
-
+        return panel
+            

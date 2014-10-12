@@ -1,6 +1,8 @@
 #global lib impports
 import copy
 import pygame
+import random
+import math
 from pygame.locals import *
 
 #local imports
@@ -31,6 +33,100 @@ class DictEvent(object):
         for s in slots:
             if hasattr(event, s):
                 self.__dict__[s] = getattr(event, s)
+
+class CircuitFollower(object):
+    def __init__(self, herd):
+        self.move_speed = 1.0
+        self.herd = herd
+        self.target = self.herd.position
+        self.position = self.herd.position
+        
+    def update(self):
+        diff = self.target - self.position
+        if diff.length <= self.move_speed:
+            x = 30
+            self.target = self.herd.position + (random.uniform(-x,x), random.uniform(-x,x))
+        else:
+            self.position = self.position.interpolate_to( self.target, self.move_speed/diff.length)
+
+class CircuitHerd(object):
+    def __init__(self, circuit):
+        self.move_speed = 1.5
+        self.circuit = circuit
+        self.position = circuit[0]
+        self.node = 0
+    
+    def update(self):
+        diff = self.circuit[self.node] - self.position
+        if diff.length <= self.move_speed:
+            self.node = (self.node + 1)%len(self.circuit)
+        else:
+            print diff.length
+            self.position = self.position.interpolate_to( self.circuit[self.node], self.move_speed/diff.length)
+
+class CircuitActivity( application.Activity):
+    
+    def on_create(self, config):
+        self.screen = self.controller.screen
+        
+        self.make_circuit()
+        
+    def make_circuit(self):
+        self.num_nodes = 10
+        center = self.screen.get_rect().center
+        
+        aspect = random.uniform(2.0/4, 4.0/2)
+        basedir = random.uniform(0.0, 2*math.pi)        
+        incr = 2*math.pi/self.num_nodes
+        direc = [0]*self.num_nodes
+        for i in xrange(self.num_nodes):
+            direc[i] = i*incr + random.uniform(-incr/3.0, incr/3.0)
+        
+        self.nodes = []
+        for i in xrange(self.num_nodes):
+            l = 200 * random.uniform(1.0, 1.25)
+            pos = vector.Vec2d(math.sin(direc[i])*l*aspect, -math.cos(direc[i])*l/aspect)
+            
+            cos = math.cos(basedir)
+            sin = math.sin(basedir)
+            pos = vector.Vec2d( pos[0]*cos - pos[1]*sin, pos[0]*sin + pos[1]*cos)
+            pos += center
+            
+            self.nodes.append(pos)
+        
+        #herd stuff
+        self.num_followers = 4
+        self.herd = CircuitHerd(self.nodes)
+        self.followers = [CircuitFollower(self.herd) for i in xrange(self.num_followers)]
+
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == K_SPACE:
+                self.make_circuit()
+                
+    def update(self):
+        self.herd.update()
+        for fol in self.followers:
+            fol.update()
+    
+    def draw(self):
+        rect = self.screen.get_rect()
+        center = rect.center
+        
+        for i in xrange(len(self.nodes)-1):
+            pos1 = self.nodes[i]
+            pos2 = self.nodes[i+1]
+            
+            pygame.draw.line(self.screen, (0,0,0), pos1.int_tuple, pos2.int_tuple)
+        
+        for n in self.nodes:
+            pos = n
+            pygame.draw.circle(self.screen, (0,50,200), pos.int_tuple, 10)
+            
+        pygame.draw.circle(self.screen, (250,250,250), self.herd.position.int_tuple, 8)
+        for fol in self.followers:
+            pygame.draw.circle(self.screen, (250,250,0), fol.position.int_tuple, 5)            
+            
 
             
 class TestActivity( application.Activity):
@@ -133,11 +229,7 @@ class TestActivity( application.Activity):
         self.iface.add_child( testwidg)
         
         #snorgle
-        testobj = game.HerdObject(self.game, (-150, -150))
-        testobj.target_actions = testobj.target_actions.union(['hunt', 'domesticate'])        
-        self.game.add_game_object( testobj)
-        testwidg = interface.HerdWidget(self.iface, testobj, self.assets.get('snorgle'), pygame.transform.smoothscale( self.assets.get('meat-icon'), (30,30)))
-        self.iface.add_child( testwidg)
+        testobj = self.director.add_herd( (0,0))
         
         #hut2
         '''testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
@@ -163,6 +255,7 @@ class TestActivity( application.Activity):
         testobj = self.director.add_simple_structure( (200,170), 2, ('cut-wood',), self.assets.get('tree'))
         testobj.set_reservoir(5, 'wood', 0.01)
 
+
     def create_resource_dump(self, pos, resource):
         storage = game.ResourcePile(self.game, (30,30), pos, 1)
         storage.target_actions = storage.target_actions.union(('store'))
@@ -173,6 +266,7 @@ class TestActivity( application.Activity):
         resource = self.game.resource_types.find(resource['type'])
         widget = interface.ResourcePileWidget(self.iface, storage, resource.sprite)
         self.iface.add_child( widget)
+
         
     def update(self):
         self.ticker += 1
@@ -182,13 +276,13 @@ class TestActivity( application.Activity):
 
         pressed = pygame.key.get_pressed()
         if pressed[K_d]:
-            self.vp.pan( (2,0))
+            self.vp.pan( (5/self.vp.scale,0))
         elif pressed[K_a]:
-            self.vp.pan( (-2,0))
+            self.vp.pan( (-5/self.vp.scale,0))
         if pressed[K_s]:
-            self.vp.pan( (0,2))
+            self.vp.pan( (0,5/self.vp.scale))
         elif pressed[K_w]:
-            self.vp.pan( (0,-2))
+            self.vp.pan( (0,-5/self.vp.scale))
 
             
     def draw(self):
@@ -199,6 +293,7 @@ class TestActivity( application.Activity):
                             int(15*self.vp.scale), int(self.vp.scale*4))
 
         self.iface.draw( self.vp)
+
 
     def handle_event(self, event):
         event = DictEvent(event)
@@ -268,6 +363,47 @@ class GameDirector(object):
             obj = self.add_simple_structure( position, 4, ('butcher', 'enlist'), self.assets.get('hut'))
             obj.set_storage(10, ('wood', 'stone', 'meat'))
 
+    def make_circuit(self, center):
+        self.num_nodes = random.randrange(8,13)
+        
+        aspect = random.uniform(3.0/5, 5.0/3)
+        basedir = random.uniform(0.0, 2*math.pi)        
+        incr = 2*math.pi/self.num_nodes
+        direc = [0]*self.num_nodes
+        for i in xrange(self.num_nodes):
+            direc[i] = i*incr + random.uniform(-incr/3.0, incr/3.0)
+        
+        nodes = []
+        for i in xrange(self.num_nodes):
+            l = 300 * random.uniform(1.0, 1.25)
+            pos = vector.Vec2d(math.sin(direc[i])*l*aspect, -math.cos(direc[i])*l/aspect)
+            
+            cos = math.cos(basedir)
+            sin = math.sin(basedir)
+            pos = vector.Vec2d( pos[0]*cos - pos[1]*sin, pos[0]*sin + pos[1]*cos)
+            pos += center
+            
+            nodes.append(pos)
+            
+        return nodes
+            
+    def add_herd(self, position):
+        circuit = self.make_circuit( position)
+        num_followers = 3
+        
+        obj = game.HerdObject(self.game, circuit)
+        self.game.add_game_object( obj)
+
+            
+    def add_herd_follower(self, leader):
+        fol_obj = game.HerdMember(leader)
+        self.game.add_game_object( fol_obj)
+        fol_obj.target_actions = fol_obj.target_actions.union(['hunt', 'domesticate'])            
+        fol_widget = interface.HerdMemberWidget(self.iface, fol_obj, self.assets.get('snorgle'), self.assets.get('baby-snorgle'))
+        self.iface.add_child( fol_widget)
+        return fol_obj    
+            
+            
 
 def run():
 
