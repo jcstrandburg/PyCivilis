@@ -387,12 +387,21 @@ class GameDirector(object):
             
         return nodes
             
-    def add_herd(self, position):
+    def add_herd(self, position, add_scavenger=True):
         circuit = self.make_circuit( position)
         num_followers = 3
         
         obj = game.HerdObject(self.game, circuit)
         self.game.add_game_object( obj)
+       
+        if add_scavenger:
+            obj2 = game.ScavengerObject(self.game, obj)
+            self.game.add_game_object(obj2)
+            obj.set_scavenger( obj2)
+            widg = interface.SpriteWidget(self.iface, obj2, self.assets.get('wolf'))
+            self.iface.add_child(widg)
+                    
+        return obj        
 
             
     def add_herd_follower(self, leader):

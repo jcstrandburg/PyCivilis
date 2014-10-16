@@ -40,11 +40,11 @@ class Game(object):
         self._next_id += 1
         return self._next_id
 
-    def select(self, object):
-        self.selected_obj = object
+    def select(self, obj):
+        self.selected_obj = obj
         
-    def deselect(self, object):
-        if self.selected_obj == object:
+    def deselect(self, obj):
+        if self.selected_obj == obj:
             self.selected_obj = None
             
     """Game specific code"""
@@ -106,6 +106,7 @@ class GameObject(object):
         self.selectable = False
         self.target_actions = set([])
         self.abilities = set([])
+        self.move_speed = 1.0
 
     def _set_pos(self, pos):
         self.rect.center = self._position = vector.Vec2d(pos)
@@ -142,6 +143,21 @@ class GameObject(object):
             self.on_deselect()        
 
     selected = property(_get_selected, _set_selected)
+
+    def move_toward(self, targ_pos, speed_mult=1.0):
+        '''Moves the object towards the target position at the requested multiple of the actors normal walk speed.
+        Returns the remaining distance to the target position after the movement is complete'''
+
+        move_rate = self.move_speed * speed_mult
+        diff = targ_pos - self.position
+        if diff.length < move_rate:
+            self.position = targ_pos
+        else:
+            self.position = self.position.interpolate_to( targ_pos, move_rate/diff.length)
+        return self.dist_to(targ_pos)
+
+    def dist_to(self, pos):
+        return (pos - self.position).length
             
     def on_create(self):
         pass
@@ -307,6 +323,14 @@ class HerdObject(GameObject):
         self.spawn_timer = 0
         self.followers = []
         self.reservations = []
+        self.scavenger = None
+        
+    def set_scavenger(self, scavenger):
+        self.scavenger = scavenger
+        
+    def poach(self, poacher):
+        if self.scavenger is not None:
+            self.scavenger.chase(poacher)
         
     def update(self):
         GameObject.update(self)
@@ -362,8 +386,26 @@ class HerdObject(GameObject):
                 
         
 class ScavengerObject(GameObject):
-    def __init__(self, gamemgr, position, herd_follow):
-        self._herd_follow = herd_follow
-        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), position)
+    def __init__(self, gamemgr, herd_follow):
+        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), herd_follow.position)
+        self._herd = herd_follow
+        self._poacher = None
+        self.move_speed = 7.5
         self.dir = 1
         self._render_state['movement'] = vector.Vec2d(0,0)
+        
+    def update(self):
+        GameObject.update(self)
+        
+        if self._poacher is not None:
+            if self._poacher.carrying is not None and self._poacher.carrying['type'] == 'meat':
+                if self.move_toward(self._poacher.position, 1.0) < self.move_speed:
+                    self._poacher.carrying['qty'] *= 0.5
+                    self._poacher = None
+            else:
+                self._poacher = None
+        else:
+            self.move_toward(self._herd.position, 0.3)
+        
+    def chase(self, target):
+        self._poacher = target

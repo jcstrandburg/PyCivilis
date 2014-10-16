@@ -14,18 +14,6 @@ class Actor(game.GameObject):
         self.selectable = True
         self.carrying = None
 
-    def move_toward(self, targ_pos, speed_mult=1.0):
-        '''Moves the actor towards the target position at the requested multiple of the actors normal walk speed.
-        Returns the remaining distance to the target position after the movement is complete'''
-
-        move_rate = self.move_speed * speed_mult
-        diff = targ_pos - self.position
-        if diff.length < move_rate:
-            self.position = targ_pos
-        else:
-            self.position = self.position.interpolate_to( targ_pos, move_rate/diff.length)
-        return (targ_pos - self.position).length
-
     def update(self):
         if self._order is not None:
             self._order.do_step()
@@ -264,8 +252,6 @@ class StalkOrder(BaseOrder):
         self._suborder = None
         
     def do_step(self):
-        print "stalking"
-        
         if self.actor.hunt_reservation.ready:
             self.completed = True
             return
@@ -293,6 +279,7 @@ class HuntKillOrder(BaseOrder):
                 self.completed = True
                 self.actor.carrying = {'type':'meat', 'qty':1}
                 self._target.finished = True
+                self._target.leader.poach(self.actor)
         else:
             self.actor.move_toward( self._target.position, 1.0)
 
@@ -442,7 +429,6 @@ class HuntOrder(StatefulSuperOrder):
         if hasattr( self.actor, "hunt_reservation") and self.actor.hunt_reservation is not None:
             self.actor.hunt_reservation.release()
             self.actor.hunt_reseravation = None
-
 
 
 class OrderBuilder(object):

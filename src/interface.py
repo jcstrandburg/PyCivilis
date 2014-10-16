@@ -938,8 +938,12 @@ class ActorWidget(SpriteWidget):
         SpriteWidget._draw_self(self, viewport, disp_rect)
 
     def get_selection_menu(self):
-        print 'Carrying: '+str(self._game_object.carrying)
-        return None
+        panel = Panel(self.manager, (0,0,200,600))
+        headline = CompositeTextGenerator( (StaticText("Carrying: "), LambdaTextGenerator(lambda: str(self.game_object.carrying))))
+        text = TextLabel(self.manager, (30, 30), 'medfont', headline)
+        panel.add_child( text)
+
+        return panel
 
 
 class HerdMemberWidget(SpriteWidget):
