@@ -43,6 +43,7 @@ class BaseOrder(object):
         self.game = actor.game
         self.valid = True
         self.completed = False
+        self.progress = 0
 
     def do_step(self):
         raise NotImplementedError("abstract class!")
@@ -128,13 +129,12 @@ class ExtractResourceOrder(BaseOrder):
     def __init__(self, actor, source, resource_type):
         BaseOrder.__init__(self, actor)
         self._source = source
-        self._progress = 0
         self._resource_type = resource_type
         
     def do_step(self):
         actor = self.actor
-        self._progress += 0.01
-        if self._progress >= 1.0:
+        self.progress += 0.05
+        if self.progress >= 1.0:
             reservoir = actor.target_workspace.struct.res_storage
             actor.carrying = reservoir.withdraw(self._resource_type, 1)
             actor.target_workspace.release()
@@ -181,7 +181,7 @@ class ReserveStorageOrder(BaseOrder):
         self.completed = True
 
 
-class ReserveWorkspaceOrder(BaseOrder):
+class WaitForWorkspaceOrder(BaseOrder):
     def __init__(self, actor, structure):
         BaseOrder.__init__(self, actor)
         self._structure = structure
@@ -326,7 +326,7 @@ class ForageOrder(StatefulSuperOrder):
         self.set_state("reserve_forage_workspace")
 
     def start_reserve_forage_workspace(self):
-        return ReserveWorkspaceOrder(self.actor, self._target)
+        return WaitForWorkspaceOrder(self.actor, self._target)
 
     def complete_reserve_forage_workspace(self):
         self.set_state("move_to_workspace")
