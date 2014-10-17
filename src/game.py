@@ -393,6 +393,7 @@ class ScavengerObject(GameObject):
         self.move_speed = 7.5
         self.dir = 1
         self._render_state['movement'] = vector.Vec2d(0,0)
+        self._target_position = None
         
     def update(self):
         GameObject.update(self)
@@ -404,8 +405,13 @@ class ScavengerObject(GameObject):
                     self._poacher = None
             else:
                 self._poacher = None
+                self._target_position = None
         else:
-            self.move_toward(self._herd.position, 0.3)
+            if self._target_position is None:
+                self._target_position = self._herd.position + (random.uniform(-100,100), random.uniform(100,-100))
+            dist = self.move_toward(self._target_position, 0.7)
+            if dist < 1:
+                self._target_position = None
         
     def chase(self, target):
         self._poacher = target

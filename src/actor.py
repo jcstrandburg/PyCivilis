@@ -133,7 +133,7 @@ class ExtractResourceOrder(BaseOrder):
         
     def do_step(self):
         actor = self.actor
-        self._progress += 0.5
+        self._progress += 0.01
         if self._progress >= 1.0:
             reservoir = actor.target_workspace.struct.res_storage
             actor.carrying = reservoir.withdraw(self._resource_type, 1)
@@ -185,9 +185,12 @@ class ReserveWorkspaceOrder(BaseOrder):
     def __init__(self, actor, structure):
         BaseOrder.__init__(self, actor)
         self._structure = structure
-        self._reservation = self._structure.reserve_workspace()
+        self._reservation = self._structure.reserve_workspace() 
+        self._suborder = IdleOrder(actor)
         
     def do_step(self):
+        self._suborder.do_step()
+
         actor = self.actor
         if self._reservation.ready:
             actor.target_workspace = self._reservation.workspace
@@ -230,8 +233,10 @@ class WaitOrder(BaseOrder):
     def __init__(self, actor, callback):
         BaseOrder.__init__(self, actor)
         self.callback = callback
+        self._suborder = IdleOrder(actor)
         
     def do_step(self):
+        self._suborder.do_step()
         self.completed = self.callback()
 
 

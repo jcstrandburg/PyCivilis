@@ -249,7 +249,7 @@ class TestActivity( application.Activity):
         
         #rock
         testobj = self.director.add_simple_structure( (-200, 170), 1, ('mine',), self.assets.get('rock'))
-        testobj.set_reservoir(4, 'stone', 0.001)
+        testobj.set_reservoir(20, 'stone', 0.001)
         
         #trees
         testobj = self.director.add_simple_structure( (200,170), 2, ('cut-wood',), self.assets.get('tree'))
