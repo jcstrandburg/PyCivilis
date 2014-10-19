@@ -16,15 +16,28 @@ image icon_d icon_d.png
 image person person.png
 image ground ground.png
 image animal snorgle.png
-image tree tree.png
-image rock rocks.png
-image hut hut.png
 image snorgle snorgle.png
 image baby-snorgle baby-snorgle.png
 image wolf wolf.png
+
+image tree tree.png
+image rock rocks.png
+image hut hut.png
 image workspace campfire.png
+image storehouse longhouse.png
+image claypit claypit.png
+image farm farm.png
+image altar altar.png
 
 image stone-icon stone-res.png
 image wood-icon wood-res.png
 image tool-icon tool-res.png
 image meat-icon meat-res.png
+image clay-icon clay.png
+image corn-icon corn.png
+image fur-icon fur.png
+image mtool-icon metal-tool.png
+image pot-icon pottery.png
+image spirit-icon wheel.png
+
+

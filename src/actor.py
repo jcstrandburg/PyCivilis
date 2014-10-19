@@ -1,7 +1,6 @@
 import random
 
 import game
-import vector
 
 
 class Actor(game.GameObject):
@@ -86,7 +85,7 @@ class StatefulSuperOrder(BaseOrder):
         if hasattr(self, complete_method):
             getattr(self, complete_method)()
         else:
-            self.status = "Completion method "+complete_method+" not found"
+            raise NotImplementedError("Completion method "+complete_method+" not found")
             self.valid = False
 
     def do_step(self):
@@ -96,7 +95,11 @@ class StatefulSuperOrder(BaseOrder):
                 self._complete_state(self._state_name)
             elif not self._state_order.valid:
                 self._fail_state(self._state_name)
-
+                
+class DebugStatefulOrder(StatefulSuperOrder):
+    def set_state(self, state):
+        print "Starting state: "+state
+        StatefulSuperOrder.set_state(self, state)
 
 class SimpleMoveOrder(BaseOrder):
     def __init__(self, actor, targ_pos, move_rate=1.0):
@@ -288,6 +291,76 @@ class HuntKillOrder(BaseOrder):
         else:
             self.actor.move_toward( self._target.position, 1.0)
 
+class DoConvertOrder(BaseOrder):
+    def __init__(self, actor, fromRes, toRes):
+        BaseOrder.__init__(self, actor)
+        self.fromRes = fromRes
+        self.toRes = toRes
+        
+    def do_step(self):
+        if self.actor.carrying is None or self.actor.carrying['type'] != self.fromRes:
+            print "Invalidating DoConvertOrder"
+            self.valid = False
+            return
+        
+        self.progress += 0.05/self.actor.carrying['qty']
+        if self.progress >= 1:
+            self.completed = True
+            self.actor.target_workspace.release()
+            self.actor.carrying = {'type': self.toRes, 'qty': self.actor.carrying['qty']}
+
+class WithdrawResourceOrder(BaseOrder):
+    def __init__(self, actor, bank, resType):
+        BaseOrder.__init__(self, actor)
+        self.bank = bank
+        self.resType = resType
+        
+    def do_step(self):
+        self.actor.carrying = self.bank.res_storage.withdraw(self.resType, 1)
+        self.completed = True
+        
+class ReserveResourceInStorageOrder(BaseOrder):
+    def __init__(self, actor, resType):
+        BaseOrder.__init__(self, actor)
+        self.resType = resType
+        
+    def do_step(self):
+        if not hasattr(self.actor, 'resource_reservation') or self.actor.resource_reservation is None:
+            self.actor.resource_reservation = self.actor.game.reserve_resource_in_storage(self.actor.position, self.resType, 1)
+        
+        if self.actor.resource_reservation is None:
+            print "cant find resource "+self.resType
+            self.valid = False
+        else:
+            print "fin"
+            self.completed = True
+
+class GetResourceFromStorageOrder(DebugStatefulOrder):
+    def __init__(self, actor, resource):
+        self.resType = resource        
+        StatefulSuperOrder.__init__(self, actor, "reserve_resource")
+        
+    def start_reserve_resource(self):
+        return ReserveResourceInStorageOrder(self.actor, self.resType)
+    
+    def complete_reserve_resource(self):
+        self.set_state("move_to_source")
+        
+    def start_move_to_source(self):
+        return SimpleMoveOrder(self.actor, self.actor.resource_reservation.structure.position)
+    
+    def complete_move_to_source(self):
+        self.set_state("withdraw_resource")
+        
+    def start_withdraw_resource(self):
+        return WithdrawResourceOrder(self.actor, self.actor.resource_reservation.structure, self.resType)
+    
+    def complete_withdraw_resource(self):
+        self.completed = True
+        
+    def cancel(self):
+        raise NotImplementedError()
+
 
 class ForageOrder(StatefulSuperOrder): 
 
@@ -431,9 +504,83 @@ class HuntOrder(StatefulSuperOrder):
         self.set_state("seek")
         
     def cancel(self):
+        StatefulSuperOrder.cancel(self)        
         if hasattr( self.actor, "hunt_reservation") and self.actor.hunt_reservation is not None:
             self.actor.hunt_reservation.release()
             self.actor.hunt_reseravation = None
+            
+
+class ConvertResourceOrder(DebugStatefulOrder):
+    def __init__(self, actor, target, rawMaterial, finishedGood):
+        StatefulSuperOrder.__init__(self, actor)        
+        self.targetStruct = target
+        self.rawMaterial = rawMaterial
+        self.finishedGood = finishedGood
+        self.set_state( 'seek_material')
+        
+    def start_seek_material(self):
+        return GetResourceFromStorageOrder(self.actor, self.rawMaterial)
+
+    def complete_seek_material(self):
+        self.set_state("move_to_workplace")
+
+    def start_move_to_workplace(self):
+        diff = -self.actor.position + self.targetStruct.position
+        if diff.length > 125:
+            length = diff.length - 125
+            targetpos = self.actor.position.interpolate_to(self.targetStruct.position, length/diff.length)
+        else:
+            targetpos = self.actor.position
+        
+        return SimpleMoveOrder(self.actor, targetpos)
+
+    def complete_move_to_workplace(self):
+        self.set_state("wait_for_workspace")
+
+    def start_wait_for_workspace(self):
+        return WaitForWorkspaceOrder(self.actor, self.targetStruct)
+
+    def complete_wait_for_workspace(self):
+        self.set_state("move_to_workspace")
+
+    def start_move_to_workspace(self):
+        return SimpleMoveOrder(self.actor, self.actor.target_workspace.position)
+
+    def complete_move_to_workspace(self):
+        self.set_state("do_conversion")
+
+    def start_do_conversion(self):
+        return DoConvertOrder(self.actor, self.rawMaterial, self.finishedGood)
+
+    def complete_do_conversion(self):
+        self.set_state("reserve_storage")
+        
+    def start_reserve_storage(self):
+        return ReserveStorageOrder(self.actor)
+
+    def complete_reserve_storage(self):
+        self.set_state("move_to_storage")
+
+    def start_move_to_storage(self):
+        if self.actor.storage_reservation is not None:
+            diff = -self.actor.position + self.actor.storage_reservation.structure.position
+            length = diff.length - 125
+            targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
+            return SimpleMoveOrder(self.actor, targetpos)
+        else:
+            return SimpleMoveOrder(self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
+
+    def complete_move_to_storage(self):
+        self.set_state("store_product")        
+        
+    def start_store_product(self):
+        return DepositOrder(self.actor)
+
+    def complete_store_product(self):
+        self.set_state("seek_material")
+        
+    def cancel(self):
+        StatefulSuperOrder.cancel(self)
 
 
 class OrderBuilder(object):
@@ -451,5 +598,15 @@ class OrderBuilder(object):
             self.selected.set_order( ForageOrder(self.selected, self.target, 'wood'))
         elif tag == "hunt":
             self.selected.set_order( HuntOrder(self.selected, self.target.leader))
+        elif tag == 'gather-corn':
+            self.selected.set_order( ForageOrder(self.selected, self.target, 'vegetables'))
+        elif tag == 'gather-clay':
+            self.selected.set_order( ForageOrder(self.selected, self.target, 'clay'))
+        elif tag == 'meditate':
+            self.selected.set_order( ForageOrder(self.selected, self.target, 'spirit'))
+        elif tag == 'make-pots':
+            self.selected.set_order( ConvertResourceOrder(self.selected, self.target, 'clay', 'pottery'))
+        elif tag == 'make-tools':
+            self.selected.set_order( ConvertResourceOrder(self.selected, self.target, 'stone', 'metal_tools'))
         else:
             raise ValueError('Unrecognized tag '+str(tag))

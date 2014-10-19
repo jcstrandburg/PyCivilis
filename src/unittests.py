@@ -547,13 +547,8 @@ class RevisedOrderTests(unittest.TestCase):
         self.assertTrue(mo.valid)
         self.assertFalse(mo.completed)
         self.assertFalse( self.actor.donesies)
-        mo.do_step()
-        self.assertFalse(mo.valid)
+        self.assertRaises(NotImplementedError, mo.do_step)
         self.assertFalse(mo.completed)
-
-        #grind out some more steps to make sure it doesn't blow up
-        for i in range(5):
-            mo.do_step()
 
         mo = MockStatefulOrder3(self.actor)
         self.assertEqual(self.actor.mood, 'vacant')
@@ -689,6 +684,27 @@ class GameResourceSeekTest(unittest.TestCase):
 
         target = self.game.find_forage((0,0), 'stone', 1)
         self.assertEqual(target, store3)
+        
+    def test_find_in_storage(self):
+        self.game = game.Game()
+        
+        store1 = game.StructureObject(self.game, (100,100), (-200, 170), 1)
+        store1.set_storage(5, ('stone',))
+        store1.res_storage.deposit({'type':'stone', 'qty':3})
+        self.game.add_game_object(store1)
+        
+        reservation = self.game.reserve_resource_in_storage((100,100), 'stone', 1)
+        self.assertEqual(store1.res_storage.get_available_contents('stone'), 2)  
+        self.assertIsNotNone(reservation)
+        reservation.release()
+        store1.update()
+        self.assertEqual(store1.res_storage.get_available_contents('stone'), 3)        
+
+        store1.res_storage.withdraw('stone', 3)        
+        self.assertEqual(store1.res_storage.get_available_contents('stone'), 0)
+        
+        reservation = self.game.reserve_resource_in_storage((100,100), 'stone', 1)
+        self.assertIsNone(reservation)
         
 def run_tests(hard_fail=False):
     res = unittest.main(module=__name__, exit=False, failfast=hard_fail)

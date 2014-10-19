@@ -88,6 +88,21 @@ class Game(object):
             return backups[0]        
         
         return None
+    
+    def reserve_resource_in_storage(self, position, resourceType, qty=1):
+        candidates = []
+        for obj in self._objects:
+            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.allow_deposit:
+                if obj.res_storage.get_available_contents(resourceType) >= qty:
+                    candidates.append( obj)
+
+        candidates.sort(key=lambda candidate: (candidate.position-position).get_length())        
+        print len(candidates)
+                    
+        if ( len(candidates) > 0):
+            return candidates[0].res_storage.reserve_resources(resourceType, qty)
+        
+        return None        
 
             
 class GameObject(object):

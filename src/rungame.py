@@ -147,11 +147,11 @@ class TestActivity( application.Activity):
         metal = resource.Prototype('metal')
         stone = resource.Prototype('stone', pygame.transform.smoothscale( self.assets.get('stone-icon'), (30,30)))
         wood = resource.Prototype('wood', pygame.transform.smoothscale( self.assets.get('wood-icon'), (30,30)))
-        clay = resource.Prototype('clay')
+        clay = resource.Prototype('clay',  pygame.transform.smoothscale( self.assets.get('clay-icon'), (30,30)))
         materials.add_children( (reeds, metal, stone, wood, clay))
         
         meat = resource.Prototype('meat', pygame.transform.smoothscale( self.assets.get('meat-icon'), (30,30)))
-        vegies = resource.Prototype('vegetables')
+        vegies = resource.Prototype('vegetables',  pygame.transform.smoothscale( self.assets.get('corn-icon'), (30,30)))
         fish = resource.Prototype('fish')
         food.add_children( (meat,vegies,fish))
         
@@ -161,20 +161,21 @@ class TestActivity( application.Activity):
         manufactured.add_children( (goods, weapons, tools))
         
         nothing = resource.Prototype('nothing')
-        spirit = resource.Prototype('spirit')
+        spirit = resource.Prototype('spirit',  pygame.transform.smoothscale( self.assets.get('spirit-icon'), (30,30)))
         abstract.add_children( (nothing, spirit))
         
         jewelry = resource.Prototype('jewelry')
-        hides = resource.Prototype('hides')
+        hides = resource.Prototype('hides',  pygame.transform.smoothscale( self.assets.get('fur-icon'), (30,30)))
         baskets = resource.Prototype('baskets')
-        goods.add_children( (jewelry, hides, baskets))
+        pottery = resource.Prototype('pottery', pygame.transform.smoothscale( self.assets.get('pot-icon'), (30,30)))        
+        goods.add_children( (jewelry, hides, baskets, pottery))
         
         stoneweapons = resource.Prototype('stone_weapons')
         metalweapons = resource.Prototype('metal_weapons')
         weapons.add_children( (stoneweapons, metalweapons))
         
         basic_tools = resource.Prototype('basic_tools')
-        metal_tools = resource.Prototype('metal_tools')
+        metal_tools = resource.Prototype('metal_tools', pygame.transform.smoothscale( self.assets.get('mtool-icon'), (30,30)))
         tools.add_children( (basic_tools, metal_tools))
         
         return base
@@ -208,22 +209,22 @@ class TestActivity( application.Activity):
         self.iface.add_child(self.map)
         
         #person
-        testobj = actor.Actor(self.game, (-200, 0))
-        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
+        testobj = actor.Actor(self.game, (-100, 0))
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood', 'gather-corn', 'make-pots', 'make-tools', 'gather-clay', 'meditate'])
         self.game.add_game_object(testobj)        
         testwidg = interface.ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
 
         #person2
-        testobj = actor.Actor(self.game, (-100, -200))
-        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
+        testobj = actor.Actor(self.game, (0, 0))
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood', 'gather-corn', 'make-pots', 'make-tools', 'gather-clay', 'meditate'])
         self.game.add_game_object(testobj)        
         testwidg = interface.ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
         
         #person3
-        testobj = actor.Actor(self.game, (-150, -200))
-        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood'])
+        testobj = actor.Actor(self.game, (100, 0))
+        testobj.abilities = testobj.abilities.union(['butcher', 'enlist', 'hunt', 'domesticate', 'mine', 'cut-wood', 'gather-corn', 'make-pots', 'make-tools', 'gather-clay', 'meditate'])
         self.game.add_game_object(testobj)        
         testwidg = interface.ActorWidget( self.iface, testobj, self.assets.get("person"))
         self.iface.add_child( testwidg)
@@ -231,28 +232,32 @@ class TestActivity( application.Activity):
         #snorgle
         testobj = self.director.add_herd( (0,0))
         
-        #hut2
-        '''testobj = game.StructureObject(self.game, (100,100), (280, -280), 4)
-        testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(7, ('stone', 'wood', 'meat'))        
-        self.game.add_game_object(testobj)        
-        testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
-        self.iface.add_child( testwidg)'''
-        
         #hut
-        testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
-        testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(1, ('stone', 'wood', 'meat'))
-        self.game.add_game_object(testobj)
-        testwidg = interface.StructWidget( self.iface, testobj, self.assets.get("hut"))
-        self.iface.add_child( testwidg)
+        testobj = self.director.add_simple_structure( (-600, -200), 3, ('make-tools', 'make-pots', 'butcher'), self.assets.get('hut'))
+        testobj.set_storage(10, ('stone', 'wood', 'meat', 'clay'))
+        
+        #farm
+        testobj = self.director.add_simple_structure( (-400,  200), 1, ('gather-corn',), self.assets.get('farm'))
+        testobj.set_reservoir(10, ('vegetables'), 0.01)
+        
+        #storehouse
+        testobj = self.director.add_simple_structure( (-200, -200), 0, (), self.assets.get('storehouse'))
+        testobj.set_storage(2, ('stone', 'wood', 'meat'))        
+        
+        #altar
+        testobj = self.director.add_simple_structure( (0,  200), 1, ('meditate',), self.assets.get('altar'))
+        testobj.set_reservoir(float('inf'), 'spirit', .00001)        
+        
+        #claypit
+        testobj = self.director.add_simple_structure( (200, -200), 1, ('gather-clay',), self.assets.get('claypit'))
+        testobj.set_reservoir(10, 'clay', 0.01)        
         
         #rock
-        testobj = self.director.add_simple_structure( (-200, 170), 1, ('mine',), self.assets.get('rock'))
+        testobj = self.director.add_simple_structure( (400,  200), 1, ('mine',), self.assets.get('rock'))
         testobj.set_reservoir(20, 'stone', 0.001)
         
         #trees
-        testobj = self.director.add_simple_structure( (200,170), 2, ('cut-wood',), self.assets.get('tree'))
+        testobj = self.director.add_simple_structure( (600, -200), 2, ('cut-wood',), self.assets.get('tree'))
         testobj.set_reservoir(5, 'wood', 0.01)
 
 
@@ -363,7 +368,7 @@ class GameDirector(object):
             obj = self.add_simple_structure( position, 4, ('butcher', 'enlist'), self.assets.get('hut'))
             obj.set_storage(10, ('wood', 'stone', 'meat'))
 
-    def make_circuit(self, center):
+    def make_circuit(self, center, size=300):
         self.num_nodes = random.randrange(8,13)
         
         aspect = random.uniform(3.0/5, 5.0/3)
@@ -375,7 +380,7 @@ class GameDirector(object):
         
         nodes = []
         for i in xrange(self.num_nodes):
-            l = 300 * random.uniform(1.0, 1.25)
+            l = size * random.uniform(1.0, 1.25)
             pos = vector.Vec2d(math.sin(direc[i])*l*aspect, -math.cos(direc[i])*l/aspect)
             
             cos = math.cos(basedir)
@@ -388,7 +393,7 @@ class GameDirector(object):
         return nodes
             
     def add_herd(self, position, add_scavenger=True):
-        circuit = self.make_circuit( position)
+        circuit = self.make_circuit( position, 1000)
         num_followers = 3
         
         obj = game.HerdObject(self.game, circuit)
