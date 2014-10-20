@@ -19,6 +19,8 @@ class Actor(game.GameObject):
 
         if self._order is None or self._order.completed or not self._order.valid:
             self.set_order( IdleOrder(self))
+            
+        self.game.director.consume_food(0.0015)
 
     def set_order(self, order):
         if self._order is not None:
@@ -291,6 +293,18 @@ class HuntKillOrder(BaseOrder):
         else:
             self.actor.move_toward( self._target.position, 1.0)
 
+class GlobalProduceOrder(BaseOrder):
+    def __init__(self, actor, resource_tag):
+        BaseOrder.__init__(self, actor)
+        self.resource_tag = resource_tag
+        
+    def do_step(self):
+        self.progress += 0.05
+        if self.progress >= 1:
+            self.completed = True
+            self.valid = self.game.director.deposit_to_any_store({'type':self.resource_tag, 'qty': 1})
+        
+
 class DoConvertOrder(BaseOrder):
     def __init__(self, actor, fromRes, toRes):
         BaseOrder.__init__(self, actor)
@@ -317,6 +331,8 @@ class WithdrawResourceOrder(BaseOrder):
         
     def do_step(self):
         self.actor.carrying = self.bank.res_storage.withdraw(self.resType, 1)
+        self.actor.resource_reservation.release()        
+        self.actor.resource_reservation = None
         self.completed = True
         
 class ReserveResourceInStorageOrder(BaseOrder):
@@ -335,7 +351,7 @@ class ReserveResourceInStorageOrder(BaseOrder):
             print "fin"
             self.completed = True
 
-class GetResourceFromStorageOrder(DebugStatefulOrder):
+class GetResourceFromStorageOrder(StatefulSuperOrder):
     def __init__(self, actor, resource):
         self.resType = resource        
         StatefulSuperOrder.__init__(self, actor, "reserve_resource")
@@ -510,7 +526,7 @@ class HuntOrder(StatefulSuperOrder):
             self.actor.hunt_reseravation = None
             
 
-class ConvertResourceOrder(DebugStatefulOrder):
+class ConvertResourceOrder(StatefulSuperOrder):
     def __init__(self, actor, target, rawMaterial, finishedGood):
         StatefulSuperOrder.__init__(self, actor)        
         self.targetStruct = target
@@ -583,6 +599,48 @@ class ConvertResourceOrder(DebugStatefulOrder):
         StatefulSuperOrder.cancel(self)
 
 
+class MeditateOrder(StatefulSuperOrder):
+    
+    def __init__(self, actor, target):
+        StatefulSuperOrder.__init__(self, actor)
+        self.target_struct = target
+        self.set_state('move_to_workplace')
+        
+    def start_move_to_workplace(self):
+        diff = -self.actor.position + self.target_struct.position
+        if diff.length > 125:
+            length = diff.length - 125
+            targetpos = self.actor.position.interpolate_to(self.target_struct.position, length/diff.length)
+        else:
+            targetpos = self.actor.position
+        
+        return SimpleMoveOrder(self.actor, targetpos)
+
+    def complete_move_to_workplace(self):
+        self.set_state("wait_for_workspace")
+
+    def start_wait_for_workspace(self):
+        return WaitForWorkspaceOrder(self.actor, self.target_struct)
+
+    def complete_wait_for_workspace(self):
+        self.set_state("move_to_workspace")
+
+    def start_move_to_workspace(self):
+        return SimpleMoveOrder(self.actor, self.actor.target_workspace.position)
+
+    def complete_move_to_workspace(self):
+        self.set_state("do_meditation")
+
+    def start_do_meditation(self):
+        return GlobalProduceOrder(self.actor, 'spirit')
+
+    def complete_do_meditation(self):
+        self.set_state("do_meditation")
+        
+    def cancel(self):
+        StatefulSuperOrder.cancel(self)        
+
+
 class OrderBuilder(object):
     def __init__(self, selected, target):
         self.selected = selected
@@ -603,7 +661,7 @@ class OrderBuilder(object):
         elif tag == 'gather-clay':
             self.selected.set_order( ForageOrder(self.selected, self.target, 'clay'))
         elif tag == 'meditate':
-            self.selected.set_order( ForageOrder(self.selected, self.target, 'spirit'))
+            self.selected.set_order( MeditateOrder(self.selected, self.target))
         elif tag == 'make-pots':
             self.selected.set_order( ConvertResourceOrder(self.selected, self.target, 'clay', 'pottery'))
         elif tag == 'make-tools':

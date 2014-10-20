@@ -3,21 +3,20 @@ import unittest
 import resource
 import game
 import actor
+from rungame import GameDirector
+import interface
 
 class ResourceStoreTest(unittest.TestCase):
     def setUp(self):
-        self.store1 = resource.ResourceStore(None, 10, ['stone','wood'], True, True)
-        self.store2 = resource.ResourceStore(None, 10, ['stone','wood'], True, True)
-        self.store3 = resource.ResourceStore(None, 1, ['clay'], True, True)
+        self.store1 = resource.ResourceStore(None, 10, ['stone','wood'], resource.ResourceStore.WAREHOUSE)
+        self.store2 = resource.ResourceStore(None, 10, ['stone','wood'], resource.ResourceStore.WAREHOUSE)
+        self.store3 = resource.ResourceStore(None, 1, ['clay'], resource.ResourceStore.WAREHOUSE)
         self.store3.set_delta('clay', 0.4)
-        self.store4 = resource.ResourceStore(None, 1, ['clay'], True, True)
+        self.store4 = resource.ResourceStore(None, 1, ['clay'], resource.ResourceStore.WAREHOUSE)
         self.store4.deposit({'type':'clay', 'qty':1})
         self.store4.set_delta('clay', -0.4)
         
     def test_setup(self):
-        self.assertTrue(self.store1.allow_forage)
-        self.assertTrue(self.store1.allow_deposit)
-        
         self.assertEqual( self.store1.get_capacity(), 10)        
         
     def test_simple_deposit(self):
@@ -73,7 +72,7 @@ class ResourceStoreTest(unittest.TestCase):
         self.assertTrue( res3.ready)
         
     def test_reserve_resources(self):
-        store = resource.ResourceStore(None, 10, ['stone','wood'], True, True)
+        store = resource.ResourceStore(None, 10, ['stone','wood'], resource.ResourceStore.WAREHOUSE)
         store.set_delta('stone', 0.001)
         
         store.deposit({'type':'stone', 'qty':4})
@@ -193,11 +192,11 @@ class ExtendedResourceStoreTest(unittest.TestCase):
         self.rtree = base
 
     def test_composition(self):
-        store = resource.CompositeResourceStore()
-        sub1 = resource.ResourceStore(None, 4, ['stone'])
-        sub2 = resource.ResourceStore(None, 3, ['metal'])
-        sub3 = resource.ResourceStore(None, 2, ['wood'])
-        sub4 = resource.ResourceStore(None, 1, ['clay'])
+        store = resource.CompositeResourceStore(None)
+        sub1 = resource.ResourceStore(None, 4, ['stone'], resource.ResourceStore.WAREHOUSE)
+        sub2 = resource.ResourceStore(None, 3, ['metal'], resource.ResourceStore.WAREHOUSE)
+        sub3 = resource.ResourceStore(None, 2, ['wood'], resource.ResourceStore.WAREHOUSE)
+        sub4 = resource.ResourceStore(None, 1, ['clay'], resource.ResourceStore.WAREHOUSE)
         store.add_stores( (sub1, sub2, sub3, sub4))
         
         self.assertTrue( sub1.accepts('stone'))
@@ -233,15 +232,15 @@ class ExtendedResourceStoreTest(unittest.TestCase):
 
 
     def test_composition_overlap(self):
-        store = resource.CompositeResourceStore()
-        sub1 = resource.ResourceStore(None, 2, ['stone','wood'])
-        sub2 = resource.ResourceStore(None, 2, ['stone'])
+        store = resource.CompositeResourceStore(None,)
+        sub1 = resource.ResourceStore(None, 2, ['stone','wood'], resource.ResourceStore.WAREHOUSE)
+        sub2 = resource.ResourceStore(None, 2, ['stone'], resource.ResourceStore.WAREHOUSE)
         self.assertRaises( ValueError, store.add_stores, (sub1, sub2))
         
     def test_multiple_contents(self):
         store1 = resource.ResourceStore(None, 10, ['stone', 'wood', 'clay', 'metal'])
         store2 = resource.ResourceStore(None, 10, ['vegetables', 'fish', 'meat'])
-        store = resource.CompositeResourceStore( (store1, store2))
+        store = resource.CompositeResourceStore(None, (store1, store2))
         
         self.assertTrue(store.deposit({'type':'wood', 'qty':5}))
         self.assertTrue(store.deposit({'type':'metal', 'qty':2}))        
@@ -419,6 +418,26 @@ class ResourceTreeTests(unittest.TestCase):
         self.assertIn( 'spirit', elements)
         self.assertIn( 'nothing', elements)
         self.assertNotIn( 'clay', elements)
+        
+    def test_flatten(self):
+        flat = self.rtree.flatten_tree()
+        self.assertIn('spirit', flat)
+        self.assertIn('goods', flat)
+        self.assertIn('hides', flat)
+        self.assertIn('resource', flat)
+        
+        flat = self.rtree.flatten_tree_concrete()
+        self.assertIn('spirit', flat)
+        self.assertNotIn('goods', flat)
+        self.assertIn('hides', flat)
+        self.assertNotIn('resource', flat)
+        
+        food = self.rtree.find('food')
+        flat = food.flatten_tree_concrete()
+        self.assertIn('meat', flat)
+        self.assertIn('vegetables', flat)
+        self.assertNotIn('hides', flat)
+        self.assertIn('fish', flat)        
 
 class MockOrder(actor.BaseOrder):
     def __init__(self, actor_, limit):
@@ -655,7 +674,7 @@ class GameResourceSeekTest(unittest.TestCase):
         #dummy storage, this should not show up in find_forage
         testobj = game.StructureObject(self.game, (100,100), (125, -125), 4)
         testobj.target_actions = testobj.target_actions.union(['butcher', 'enlist'])
-        testobj.set_storage(1, ('stone', 'wood'))
+        testobj.set_warehouse(1, ('stone', 'wood'))
         self.game.add_game_object(testobj)
         self.game.update()
 
@@ -689,7 +708,7 @@ class GameResourceSeekTest(unittest.TestCase):
         self.game = game.Game()
         
         store1 = game.StructureObject(self.game, (100,100), (-200, 170), 1)
-        store1.set_storage(5, ('stone',))
+        store1.set_warehouse(5, ('stone',))
         store1.res_storage.deposit({'type':'stone', 'qty':3})
         self.game.add_game_object(store1)
         
@@ -705,6 +724,146 @@ class GameResourceSeekTest(unittest.TestCase):
         
         reservation = self.game.reserve_resource_in_storage((100,100), 'stone', 1)
         self.assertIsNone(reservation)
+
+       
+class GlobalStoreTest(unittest.TestCase):
+    
+    def setUp(self):
+        self.game = game.Game()
+        self.director = GameDirector(self.game, None, None)
+    
+    def test_global_add(self):
+        
+        struct3 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct3.set_warehouse( 9, ('spirit',))
+        self.assertEqual(struct3.res_storage.get_available_space(None), 9)        
+        self.assertEqual(struct3.res_storage.get_available_space('spirit'), 9)
+
+        struct4 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct4.set_warehouse( 9, ('spirit',))        
+        
+        qty = self.director.deposit_to_any_store({'type': 'spirit', 'qty': 10})
+        self.assertEqual( qty, 10)        
+        self.assertEqual( struct3.res_storage.get_actual_contents('spirit'), 9)
+        self.assertEqual( struct4.res_storage.get_actual_contents('spirit'), 1)
+        
+        qty = self.director.deposit_to_any_store({'type': 'spirit', 'qty': 5})
+        self.assertEqual( qty, 5)
+        self.assertEqual( struct3.res_storage.get_actual_contents('spirit'), 9)
+        self.assertEqual( struct4.res_storage.get_actual_contents('spirit'), 6)
+        
+        qty = self.director.deposit_to_any_store({'type': 'spirit', 'qty': 15})
+        self.assertEqual( qty, 3)
+        
+    def test_global_avails(self):
+        struct1 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct1.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct1.res_storage.deposit( {'type':'meat', 'qty': 10})
+        struct1.res_storage.deposit( {'type':'vegetables', 'qty': 5})
+        
+        struct2 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct2.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct2.res_storage.deposit( {'type':'fish', 'qty': 5})
+        struct2.res_storage.deposit( {'type':'meat', 'qty': 5})
+        
+        self.assertEqual(self.director.get_total_available_stored_resources('meat'), 15)
+        self.assertEqual(self.director.get_total_available_stored_resources('fish'), 5)
+        self.assertEqual(self.director.get_total_available_stored_resources('vegetables'), 5)                     
+        
+    def test_global_consume(self):
+        
+        struct1 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct1.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct1.res_storage.deposit( {'type':'meat', 'qty': 10})
+        
+        struct2 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct2.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct2.res_storage.deposit( {'type':'fish', 'qty': 5})
+        
+        qty = self.director.consume_from_any_store(('meat','fish','vegetables'), 3)
+        self.assertEqual( qty, 3)
+        self.assertEqual( struct1.res_storage.get_actual_contents('meat'), 8)
+        self.assertEqual( struct2.res_storage.get_actual_contents('fish'), 4)
+        qty = self.director.consume_from_any_store(('meat','fish','vegetables'), 3)
+        self.assertEqual( qty, 3)        
+        self.assertEqual( struct1.res_storage.get_actual_contents('meat'), 6)
+        self.assertEqual( struct2.res_storage.get_actual_contents('fish'), 3)
+        struct1.res_storage.withdraw( 'meat', 3)
+        qty = self.director.consume_from_any_store(('meat','fish','vegetables'), 10)
+        self.assertEqual( qty, 6)        
+        self.assertEqual( struct1.res_storage.get_actual_contents('meat'), 0)
+        self.assertEqual( struct2.res_storage.get_actual_contents('fish'), 0)
+
+    def test_food_value(self):
+        a = (1,1,1)
+        b = {'meat':1, 'fish': 1, 'vegetables': 0}
+        c = [1,0,0]
+        d = [2,1,0]
+        e = {'meat':3, 'fish':2, 'vegetables':1}
+        f = (1.0,0.5,0.0)
+        
+        self.assertEqual(self.director.calc_food_value(a), 6)
+        self.assertEqual(self.director.calc_food_value(b), 3)
+        self.assertEqual(self.director.calc_food_value(c), 1)
+        self.assertEqual(self.director.calc_food_value(d), 4)
+        self.assertEqual(self.director.calc_food_value(e), 10)
+        self.assertEqual(self.director.calc_food_value(f), 2)
+        
+    def test_food_buffer(self):
+        struct1 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct1.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct1.res_storage.deposit( {'type':'meat', 'qty': 2})
+        struct1.res_storage.deposit( {'type':'vegetables', 'qty': 1})
+        
+        struct2 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct2.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct2.res_storage.deposit( {'type':'fish', 'qty': 2})
+        struct2.res_storage.deposit( {'type':'meat', 'qty': 1})
+        
+        qty = self.director.buffer_food()
+        self.assertEqual(qty, 6)
+        self.assertEqual(self.director.get_total_available_stored_resources('meat'), 2)
+        self.assertEqual(self.director.get_total_available_stored_resources('fish'), 1)
+        self.assertEqual(self.director.get_total_available_stored_resources('vegetables'), 0)
+        
+        qty = self.director.buffer_food()
+        self.assertEqual(qty, 3)        
+        self.assertEqual(self.director.get_total_available_stored_resources('meat'), 1)
+        self.assertEqual(self.director.get_total_available_stored_resources('fish'), 0)
+        self.assertEqual(self.director.get_total_available_stored_resources('vegetables'), 0)
+        
+        qty = self.director.buffer_food()
+        self.assertEqual(qty, 1)        
+        self.assertEqual(self.director.get_total_available_stored_resources('meat'), 0)
+        self.assertEqual(self.director.get_total_available_stored_resources('fish'), 0)
+        self.assertEqual(self.director.get_total_available_stored_resources('vegetables'), 0)
+        
+    def test_consume_food(self):
+        struct1 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct1.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct1.res_storage.deposit( {'type':'meat', 'qty': 3})
+        
+        struct2 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct2.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct2.res_storage.deposit( {'type':'fish', 'qty': 2})
+        
+        struct3 = self.director.add_simple_structure((0,0), 1, (), None)
+        struct3.set_warehouse( 100, ('meat','fish','vegetables'))
+        struct3.res_storage.deposit( {'type':'vegetables', 'qty': 1})        
+       
+        for x in xrange(99):
+            self.assertTrue(self.director.consume_food(0.1))
+            
+        self.assertFalse(self.director.consume_food(0.2))
+        self.assertTrue(self.director.consume_food(0.05))
+        self.assertFalse(self.director.consume_food(0.1))
+        self.assertTrue(self.director.consume_food(0.05))
+        self.assertFalse(self.director.consume_food(0.05))
+            
+                
+        
+        
+    
         
 def run_tests(hard_fail=False):
     res = unittest.main(module=__name__, exit=False, failfast=hard_fail)

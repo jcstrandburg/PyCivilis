@@ -62,7 +62,11 @@ class ResourceReservation(reservation.Reservation):
         
 class ResourceStore(object):
 
-    def __init__(self, structure, capacity, accept_list, allow_deposit=True, allow_forage=True):
+    WAREHOUSE = 16
+    RESERVOIR = 17
+    DUMP = 18
+
+    def __init__(self, structure, capacity, accept_list, mode=WAREHOUSE):
         self._storage_reservations = []
         self._resource_reservations = []
         self._accepts = list(accept_list)
@@ -70,11 +74,10 @@ class ResourceStore(object):
         self._deltas = {}
         self.contents = {}
         self.structure = structure
-        self.allow_deposit = allow_deposit
-        self.allow_forage = allow_forage
+        self.mode = mode
 
         self.debug_string = 'hey hey hey'
-
+        
     def accepts(self, tag):
         return tag in self._accepts
      
@@ -91,7 +94,7 @@ class ResourceStore(object):
         try:
             qty = min(self.contents[tag], amount)
             if (qty > 0):
-                self.contents[tag] -= amount
+                self.contents[tag] -= qty
                 return {'type':tag, 'qty': qty}
             else:
                 return None
@@ -112,11 +115,14 @@ class ResourceStore(object):
                     
         try:
             self.contents[resource['type']] += resource['qty']
+            return True            
         except KeyError:
             if resource['type'] in self._accepts:
                 self.contents[resource['type']] = resource['qty']
-                
-        return True
+                return True
+            
+        return False
+        
 
     def reserve_storage(self, tag, amount):
         cap = self.get_available_space(tag)
@@ -243,9 +249,11 @@ class ResourceStore(object):
                 pres.make_ready()
 
 class CompositeResourceStore(ResourceStore):
-    def __init__(self, stores=None, allow_deposit=True, allow_forage=True):
+    def __init__(self, structure, stores=None, mode=ResourceStore.WAREHOUSE):
         self._stores = []
-        self._accepts = []        
+        self._accepts = []
+        self.structure = structure
+        self.mode = mode
         if stores is not None:
             self.add_stores(stores)
             

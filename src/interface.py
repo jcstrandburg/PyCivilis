@@ -911,7 +911,7 @@ class ResourcePileWidget( SpriteWidget):
         if store is not None:
             offset = 1
             for key in store._accepts:
-                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key), LambdaTextGenerator(lambda bound_key=key: "%.1f"%store.get_actual_contents(bound_key))]))
+                text = TextLabel(self.manager, (30, 30+offset*30), 'medfont', CompositeTextGenerator([StaticText(key), LambdaTextGenerator(lambda bound_key=key: "%.3f"%store.get_actual_contents(bound_key))]))
                 panel.add_child( text)
                 offset += 1
 

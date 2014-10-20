@@ -14,6 +14,7 @@ import game
 import interface
 import actor
 import resource
+from src.interface import CompositeTextGenerator
 
 class CivilisApp( application.Application):
     """Game specific Application class."""
@@ -133,6 +134,8 @@ class TestActivity( application.Activity):
     """Test activity for debugging."""
     
     def make_resource_tree(self):
+        downscale = lambda tag: pygame.transform.smoothscale( self.assets.get(tag), (30,30))
+        
         base = resource.Prototype('resource')
         abstract = resource.Prototype('abstract')
         manufactured = resource.Prototype('manufactured')
@@ -143,16 +146,16 @@ class TestActivity( application.Activity):
         food = resource.Prototype('food')
         gathered.add_children( (materials, food))
         
-        reeds = resource.Prototype('reeds')
-        metal = resource.Prototype('metal')
-        stone = resource.Prototype('stone', pygame.transform.smoothscale( self.assets.get('stone-icon'), (30,30)))
-        wood = resource.Prototype('wood', pygame.transform.smoothscale( self.assets.get('wood-icon'), (30,30)))
-        clay = resource.Prototype('clay',  pygame.transform.smoothscale( self.assets.get('clay-icon'), (30,30)))
+        reeds = resource.Prototype('reeds', concrete=True)
+        metal = resource.Prototype('metal', concrete=True)
+        stone = resource.Prototype('stone', downscale('stone-icon'), concrete=True)
+        wood = resource.Prototype('wood', downscale('wood-icon'), concrete=True)
+        clay = resource.Prototype('clay', downscale('clay-icon'), concrete=True)
         materials.add_children( (reeds, metal, stone, wood, clay))
         
-        meat = resource.Prototype('meat', pygame.transform.smoothscale( self.assets.get('meat-icon'), (30,30)))
-        vegies = resource.Prototype('vegetables',  pygame.transform.smoothscale( self.assets.get('corn-icon'), (30,30)))
-        fish = resource.Prototype('fish')
+        meat = resource.Prototype('meat', downscale('meat-icon'), concrete=True)
+        vegies = resource.Prototype('vegetables',  downscale('corn-icon'), concrete=True)
+        fish = resource.Prototype('fish', concrete=True)
         food.add_children( (meat,vegies,fish))
         
         goods = resource.Prototype('goods')
@@ -160,22 +163,22 @@ class TestActivity( application.Activity):
         tools = resource.Prototype('tools')
         manufactured.add_children( (goods, weapons, tools))
         
-        nothing = resource.Prototype('nothing')
-        spirit = resource.Prototype('spirit',  pygame.transform.smoothscale( self.assets.get('spirit-icon'), (30,30)))
+        nothing = resource.Prototype('nothing', concrete=True)
+        spirit = resource.Prototype('spirit',  downscale('spirit-icon'), concrete=True)
         abstract.add_children( (nothing, spirit))
         
-        jewelry = resource.Prototype('jewelry')
-        hides = resource.Prototype('hides',  pygame.transform.smoothscale( self.assets.get('fur-icon'), (30,30)))
-        baskets = resource.Prototype('baskets')
-        pottery = resource.Prototype('pottery', pygame.transform.smoothscale( self.assets.get('pot-icon'), (30,30)))        
+        jewelry = resource.Prototype('jewelry', concrete=True)
+        hides = resource.Prototype('hides',  downscale('fur-icon'), concrete=True)
+        baskets = resource.Prototype('baskets', concrete=True)
+        pottery = resource.Prototype('pottery', downscale('pot-icon'), concrete=True)        
         goods.add_children( (jewelry, hides, baskets, pottery))
         
-        stoneweapons = resource.Prototype('stone_weapons')
-        metalweapons = resource.Prototype('metal_weapons')
+        stoneweapons = resource.Prototype('stone_weapons', concrete=True)
+        metalweapons = resource.Prototype('metal_weapons', concrete=True)
         weapons.add_children( (stoneweapons, metalweapons))
         
-        basic_tools = resource.Prototype('basic_tools')
-        metal_tools = resource.Prototype('metal_tools', pygame.transform.smoothscale( self.assets.get('mtool-icon'), (30,30)))
+        basic_tools = resource.Prototype('basic_tools', concrete=True)
+        metal_tools = resource.Prototype('metal_tools', downscale('mtool-icon'), concrete=True)
         tools.add_children( (basic_tools, metal_tools))
         
         return base
@@ -234,7 +237,10 @@ class TestActivity( application.Activity):
         
         #hut
         testobj = self.director.add_simple_structure( (-600, -200), 3, ('make-tools', 'make-pots', 'butcher'), self.assets.get('hut'))
-        testobj.set_storage(10, ('stone', 'wood', 'meat', 'clay'))
+        store1 = resource.ResourceStore(testobj, 10, ('pottery',), resource.ResourceStore.WAREHOUSE)
+        store2 = resource.ResourceStore(testobj, float('inf'), ('meat', 'vegetables', 'fish', 'spirit'), resource.ResourceStore.WAREHOUSE)         
+        store = resource.CompositeResourceStore(testobj, (store1,store2), resource.ResourceStore.WAREHOUSE)       
+        testobj.set_storage(store)
         
         #farm
         testobj = self.director.add_simple_structure( (-400,  200), 1, ('gather-corn',), self.assets.get('farm'))
@@ -242,15 +248,15 @@ class TestActivity( application.Activity):
         
         #storehouse
         testobj = self.director.add_simple_structure( (-200, -200), 0, (), self.assets.get('storehouse'))
-        testobj.set_storage(2, ('stone', 'wood', 'meat'))        
+        testobj.set_warehouse(2, ('clay', 'wood', 'stone'))        
         
         #altar
         testobj = self.director.add_simple_structure( (0,  200), 1, ('meditate',), self.assets.get('altar'))
-        testobj.set_reservoir(float('inf'), 'spirit', .00001)        
+        testobj.set_reservoir(float('inf'), 'spirit', 0)        
         
         #claypit
         testobj = self.director.add_simple_structure( (200, -200), 1, ('gather-clay',), self.assets.get('claypit'))
-        testobj.set_reservoir(10, 'clay', 0.01)        
+        testobj.set_reservoir(10, 'clay', 0.01)
         
         #rock
         testobj = self.director.add_simple_structure( (400,  200), 1, ('mine',), self.assets.get('rock'))
@@ -259,18 +265,13 @@ class TestActivity( application.Activity):
         #trees
         testobj = self.director.add_simple_structure( (600, -200), 2, ('cut-wood',), self.assets.get('tree'))
         testobj.set_reservoir(5, 'wood', 0.01)
-
-
-    def create_resource_dump(self, pos, resource):
-        storage = game.ResourcePile(self.game, (30,30), pos, 1)
-        storage.target_actions = storage.target_actions.union(('store'))
-        storage.set_storage(resource['qty'], [resource['type']])
-        storage.res_storage.deposit( resource)
-        storage.res_storage.set_delta(resource['type'], -.001)
-        self.game.add_game_object(storage)
-        resource = self.game.resource_types.find(resource['type'])
-        widget = interface.ResourcePileWidget(self.iface, storage, resource.sprite)
-        self.iface.add_child( widget)
+        
+        #hud
+        panel = interface.Panel(self.iface, (0,0,800,50))
+        gen = interface.CompositeTextGenerator([interface.StaticText('Foodbuffer: '), interface.LambdaTextGenerator(lambda: self.director.food_buffer)])
+        text = interface.TextLabel(self.iface, (10,10), 'medfont', gen)
+        panel.add_child(text)
+        self.iface.add_child(panel)
 
         
     def update(self):
@@ -337,27 +338,38 @@ class GameDirector(object):
         self.game = game_mgr
         self.iface = iface_mgr
         self.assets = asset_mgr
+        
+        self.food_buffer = 0
 
-    def create_resource_dump(self, pos, resource):
+    def create_resource_dump(self, pos, dumpThis):
         storage = game.ResourcePile(self.game, (30,30), pos, 1)
         storage.target_actions = storage.target_actions.union(('store'))
-        storage.set_storage(resource['qty'], [resource['type']])
-        storage.res_storage.deposit( resource)
-        storage.res_storage.set_delta(resource['type'], -.001)
+        dump = resource.ResourceStore(storage, dumpThis['qty'], (dumpThis['type'],), resource.ResourceStore.DUMP)
+        dump.deposit( dumpThis)
+        dump.set_delta(dumpThis['type'], -.001)        
+        storage.set_storage(dump)
         self.game.add_game_object(storage)
-        resource = self.game.resource_types.find(resource['type'])
-        widget = interface.ResourcePileWidget(self.iface, storage, resource.sprite)
-        self.iface.add_child( widget)
+        
+        if self.iface is not None:
+            res_prototype = self.game.resource_types.find(dumpThis['type'])
+            widget = interface.ResourcePileWidget(self.iface, storage, res_prototype.sprite)
+            self.iface.add_child( widget)
 
     def add_simple_structure(self, position, num_workspaces, actions, sprite):
         obj = game.StructureObject(self.game, (100,100), position, num_workspaces)
         obj.target_actions = obj.target_actions.union(actions)
         self.game.add_game_object(obj)
-        widget = interface.StructWidget( self.iface, obj, sprite)
-        self.iface.add_child( widget)
+        
+        if self.iface is not None:
+            widget = interface.StructWidget( self.iface, obj, sprite)
+            self.iface.add_child( widget)
+            
         return obj
     
     def add_tagged_structure(self, position, tag):
+        '''This needs to add interface objects'''
+        
+        
         if tag == 'rock':
             obj = self.director.add_simple_structure( position, 1, ('mine',), self.assets.get('rock'))
             obj.set_reservoir(5, 'stone', 0.001)            
@@ -366,7 +378,7 @@ class GameDirector(object):
             obj.set_reservoir(5, 'wood', 0.001)                
         elif tag == 'hut':
             obj = self.add_simple_structure( position, 4, ('butcher', 'enlist'), self.assets.get('hut'))
-            obj.set_storage(10, ('wood', 'stone', 'meat'))
+            obj.set_warehouse(10, ('wood', 'stone', 'meat'))
 
     def make_circuit(self, center, size=300):
         self.num_nodes = random.randrange(8,13)
@@ -403,8 +415,10 @@ class GameDirector(object):
             obj2 = game.ScavengerObject(self.game, obj)
             self.game.add_game_object(obj2)
             obj.set_scavenger( obj2)
-            widg = interface.SpriteWidget(self.iface, obj2, self.assets.get('wolf'))
-            self.iface.add_child(widg)
+            
+            if self.iface is not None:
+                widg = interface.SpriteWidget(self.iface, obj2, self.assets.get('wolf'))
+                self.iface.add_child(widg)
                     
         return obj        
 
@@ -412,12 +426,112 @@ class GameDirector(object):
     def add_herd_follower(self, leader):
         fol_obj = game.HerdMember(leader)
         self.game.add_game_object( fol_obj)
-        fol_obj.target_actions = fol_obj.target_actions.union(['hunt', 'domesticate'])            
-        fol_widget = interface.HerdMemberWidget(self.iface, fol_obj, self.assets.get('snorgle'), self.assets.get('baby-snorgle'))
-        self.iface.add_child( fol_widget)
-        return fol_obj    
+        fol_obj.target_actions = fol_obj.target_actions.union(['hunt', 'domesticate'])
+        
+        if self.iface is not None:            
+            fol_widget = interface.HerdMemberWidget(self.iface, fol_obj, self.assets.get('snorgle'), self.assets.get('baby-snorgle'))
+            self.iface.add_child( fol_widget)
             
+        return fol_obj
+    
+    def deposit_to_any_store(self, addThis):
+        
+        deposited = 0
+        for obj in self.game._objects:
+            if hasattr(obj, 'res_storage') and obj.res_storage.mode == resource.ResourceStore.WAREHOUSE:
+                qty = min(addThis['qty'], obj.res_storage.get_available_space(addThis['type']))
+                if qty > 0:
+                    if obj.res_storage.deposit( {'type': addThis['type'], 'qty': qty}):
+                        deposited += qty
+                        addThis['qty'] -= qty
+                        
+            if addThis['qty'] <= 0:
+                break
             
+        return deposited
+    
+    def consume_from_any_store(self, consume_these, total_amount):
+        
+        consumed = 0
+        candidates = []
+        contents = {}
+        ratios = {}
+        for tag in consume_these:
+            contents[tag] = 0
+        
+        for obj in self.game._objects:
+            if hasattr(obj, 'res_storage') and obj.res_storage.mode in (resource.ResourceStore.WAREHOUSE, resource.ResourceStore.DUMP):
+                for c in consume_these:
+                    qty = obj.res_storage.get_available_contents(c)
+                    if qty > 0:
+                        contents[c] += qty
+                        candidates.append( obj)
+                        
+        total = 0
+        for tag in contents:
+            total += contents[tag]
+            
+        if total == 0:
+            return 0
+            
+        for tag in contents:
+            ratios[tag] = float(contents[tag]) / total
+            
+        for tag in consume_these:
+            withdraw_amount = ratios[tag] * total_amount
+            for obj in candidates:
+                qty = min(obj.res_storage.get_available_contents(tag), withdraw_amount)
+                if qty > 0:
+                    res = obj.res_storage.withdraw(tag, qty)
+                    withdraw_amount -= res['qty']
+                    consumed += res['qty']
+                    
+            if withdraw_amount <= 0:
+                continue
+            
+        return consumed
+    
+    def calc_food_value(self, foods):
+        
+        assert( len(foods) == 3)        
+        if hasattr(foods, 'values'):
+            values = sorted(foods.values())
+        else:
+            values = sorted(foods)
+            
+        return 3*values[0] + 2*values[1] + values[2]
+    
+    def get_total_available_stored_resources(self, tag):
+        qty = 0
+        for obj in self.game._objects:
+            if hasattr(obj, 'res_storage') and obj.res_storage.mode in (resource.ResourceStore.WAREHOUSE, resource.ResourceStore.DUMP):
+                qty += obj.res_storage.get_available_contents(tag)
+                
+        return qty
+    
+    def buffer_food(self, units=1):
+        '''withdraws up to 1 of each food resource from any storage available, increasing the food buffer by a corresponding amount.
+        The total amount of buffer increase is depenedent on the number of food types available. More food types = a greater buffer'''
+        
+        contents = {}
+        
+        tags = ('meat', 'fish', 'vegetables')
+        for tag in tags:
+            contents[tag] = self.consume_from_any_store((tag,), units)
+
+        total = self.calc_food_value(contents)
+        self.food_buffer += total
+        return total
+    
+    def consume_food(self, amount):
+        
+        while self.food_buffer < amount:
+            increase = self.buffer_food()
+            if increase == 0:
+                return False
+            
+        self.food_buffer -= amount
+        return True
 
 def run():
 

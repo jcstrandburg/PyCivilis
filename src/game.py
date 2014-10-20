@@ -49,18 +49,18 @@ class Game(object):
             
     """Game specific code"""
     
-    def reserve_storage(self, position, resource):
+    def reserve_storage(self, position, reserveThis):
         candidates = []
         for x in xrange(len(self._objects)):
             obj = self._objects[x]
-            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.allow_deposit:
-                if obj.res_storage.get_available_space(resource['type']) >= resource['qty']:
+            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.mode == resource.ResourceStore.WAREHOUSE:
+                if obj.res_storage.get_available_space(reserveThis['type']) >= reserveThis['qty']:
                     candidates.append( obj)
 
         candidates.sort(key=lambda candidate: (candidate.position-position).get_length())
                     
         if ( len(candidates) > 0):
-            return candidates[0].res_storage.reserve_storage(resource['type'], resource['qty'])
+            return candidates[0].res_storage.reserve_storage(reserveThis['type'], reserveThis['qty'])
         return None
 
     
@@ -70,7 +70,7 @@ class Game(object):
         
         for x in xrange(len(self._objects)):
             obj = self._objects[x]
-            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.allow_forage:
+            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.mode == resource.ResourceStore.RESERVOIR:
                 avail = obj.res_storage.get_available_contents(resource_type)
                 if avail >= qty:
                     candidates.append( obj)
@@ -91,16 +91,26 @@ class Game(object):
     
     def reserve_resource_in_storage(self, position, resourceType, qty=1):
         candidates = []
+        backups = []
         for obj in self._objects:
-            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.allow_deposit:
-                if obj.res_storage.get_available_contents(resourceType) >= qty:
+            if hasattr(obj, "res_storage") and obj.res_storage is not None and obj.res_storage.mode in (resource.ResourceStore.WAREHOUSE, resource.ResourceStore.DUMP):
+                avail = obj.res_storage.get_available_contents(resourceType)
+                if avail >= qty:
                     candidates.append( obj)
+                elif avail > 0:
+                    backups.append( obj)
 
         candidates.sort(key=lambda candidate: (candidate.position-position).get_length())        
-        print len(candidates)
+        print "Found "+str(len(candidates))+" candidates"
                     
         if ( len(candidates) > 0):
             return candidates[0].res_storage.reserve_resources(resourceType, qty)
+        
+        backups.sort(key=lambda candidate: (candidate.position-position).get_length())
+        print "Found "+str(len(backups))+" backups"
+        
+        if ( len(backups) > 0):
+            return backups[0].res_storage.reserve_resources(resourceType, backups[0].res_storage.get_available_contents(resourceType))
         
         return None        
 
@@ -232,16 +242,20 @@ class StructureObject(GameObject):
             pos = vector.Vec2d(dist*math.sin(angle), dist*math.cos(angle)) + basepos
             workspace = Workspace(game, self, pos)
             self.workspaces.append( workspace)
-            
-    def set_storage(self, cap, accepts):
+
+    def set_storage(self, store):
         assert self.res_storage is None
-        self.res_storage = resource.ResourceStore(self, cap, accepts, True, False)
+        self.res_storage = store    
+            
+    def set_warehouse(self, cap, accepts):
+        assert self.res_storage is None
+        self.set_storage( resource.ResourceStore(self, cap, accepts, resource.ResourceStore.WAREHOUSE))
 
     def set_reservoir(self, qty, res_type, regen_rate):
-        assert self.res_storage is None        
-        self.res_storage = resource.ResourceStore(self, qty, [res_type], False, True)
-        self.res_storage.deposit( {'type':res_type, 'qty':qty})
-        self.res_storage.set_delta(res_type, regen_rate)
+        store = resource.ResourceStore(self, qty, [res_type], resource.ResourceStore.RESERVOIR)
+        store.deposit( {'type':res_type, 'qty':qty})
+        store.set_delta(res_type, regen_rate)
+        self.set_storage( store)         
         
     def update(self):
         GameObject.update(self)
@@ -294,7 +308,7 @@ class StructureObject(GameObject):
 class ResourcePile(StructureObject):
     def update(self):
         StructureObject.update(self)
-        if self.res_storage.get_actual_contents(None) == 0:
+        if self.res_storage.get_actual_contents(None) <= 0:
             self.finished = True
 
 class HuntingReservation(reservation.Reservation):
