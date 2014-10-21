@@ -171,6 +171,17 @@ class InterfaceAction(object):
     def do_action(self, source_widget, interface, game):
         raise NotImplementedError("InterfaceAction.do_action")
 
+
+class CloseAction(InterfaceAction):
+    '''Generic InterfaceAction for closing/finishing an interface item'''
+    
+    def __init__(self, target):
+        InterfaceAction.__init__(self)
+        self.target = target
+        
+    def do_action(self, source_widget, interface, game):
+        self.target.finished = True
+
         
 class TextGenerator(object):
     """Text generators for text label/button widgets"""

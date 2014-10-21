@@ -299,7 +299,7 @@ class GlobalProduceOrder(BaseOrder):
         self.resource_tag = resource_tag
         
     def do_step(self):
-        self.progress += 0.05
+        self.progress += 0.5
         if self.progress >= 1:
             self.completed = True
             self.valid = self.game.director.deposit_to_any_store({'type':self.resource_tag, 'qty': 1})

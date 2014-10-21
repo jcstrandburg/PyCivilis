@@ -1,5 +1,4 @@
 #global lib impports
-import copy
 import pygame
 import random
 import math
@@ -14,7 +13,7 @@ import game
 import interface
 import actor
 import resource
-from src.interface import CompositeTextGenerator
+import tech
 
 class CivilisApp( application.Application):
     """Game specific Application class."""
@@ -271,6 +270,17 @@ class TestActivity( application.Activity):
         gen = interface.CompositeTextGenerator([interface.StaticText('Foodbuffer: '), interface.LambdaTextGenerator(lambda: self.director.food_buffer)])
         text = interface.TextLabel(self.iface, (10,10), 'medfont', gen)
         panel.add_child(text)
+        gen = interface.CompositeTextGenerator([
+                    interface.StaticText('Spirit: '), 
+                    interface.LambdaTextGenerator(lambda: self.director.get_total_available_stored_resources(('spirit',))),
+                    ])
+        text = interface.TextLabel(self.iface, (400,10), 'medfont', gen)
+        panel.add_child(text)
+        
+        
+        button = interface.TextButton(self.iface, (600,10), 'medfont', interface.StaticText('Research'), ResearchMenuAction())
+        panel.add_child(button)
+        
         self.iface.add_child(panel)
 
         
@@ -329,7 +339,35 @@ class TestActivity( application.Activity):
                 self.options = min(self.options+1, 8)
             elif event.key == K_ESCAPE:
                 self.finish()
-                
+
+class ResearchMenuAction(interface.InterfaceAction):
+        
+    def do_action(self, source_widget, interface, game):
+        game.director.show_research_menu()
+        
+class ResearchItemAction(interface.InterfaceAction):
+    
+    def __init__(self, tag):
+        interface.InterfaceAction.__init__(self)
+        self.tag = tag        
+        
+    def do_action(self, source_widget, interface, game):
+
+        director = game.director
+        techmgr = director.tech
+        spirit = director.get_total_available_stored_resources(('spirit',))
+        print spirit        
+        tech = techmgr.get_tech(self.tag)
+        
+        if tech.cost <= spirit:
+            techmgr.research(self.tag)
+            consumed = director.consume_from_any_store(('spirit',), tech.cost)
+            print consumed
+            if director.research_menu is not None:
+                director.research_menu.finished = True
+            director.show_research_menu()
+        else:
+            print "I'm broke nigga"
 
 class GameDirector(object):
     '''Generic factory/game state mutator'''
@@ -340,6 +378,25 @@ class GameDirector(object):
         self.assets = asset_mgr
         
         self.food_buffer = 0
+        self.tech = tech.CivilisTechManager()
+        self.research_menu = None
+
+    def show_research_menu(self):
+        self.research_menu = panel = interface.Panel(self.iface, (100,100,600,600))
+        self.iface.add_child(panel)
+
+        panel.add_child(interface.TextButton(self.iface, (550, 10), 'smallfont', interface.StaticText('close'), interface.CloseAction(panel)))
+        
+        avails = self.tech.available_techs()
+        offset = 1
+        for tag in avails:
+            tech = self.tech.get_tech(tag)
+            string = "%d: %s" % (tech.cost, tech.tag)
+            gen = interface.StaticText(string)
+            offset += 1
+            text = interface.TextButton(self.iface, (30, offset*25), 'medfont', gen, ResearchItemAction(tech.tag))
+            panel.add_child(text)
+            
 
     def create_resource_dump(self, pos, dumpThis):
         storage = game.ResourcePile(self.game, (30,30), pos, 1)

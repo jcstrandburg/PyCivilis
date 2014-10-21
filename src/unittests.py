@@ -4,7 +4,7 @@ import resource
 import game
 import actor
 from rungame import GameDirector
-import interface
+import tech
 
 class ResourceStoreTest(unittest.TestCase):
     def setUp(self):
@@ -860,10 +860,129 @@ class GlobalStoreTest(unittest.TestCase):
         self.assertTrue(self.director.consume_food(0.05))
         self.assertFalse(self.director.consume_food(0.05))
             
-                
+
+class DummyDirector(object):
+    def __init__(self):
+        testval = 10
         
-        
+class TestTechnology(tech.Technology):
+    def __init__(self, tag, reqs, cost, testval):
+        tech.Technology.__init__(self, tag, reqs, cost)
+        self.testval = testval
     
+    def research_handler(self, manager, director):
+        manager.set_var('testval', self.testval)
+        if director is not None:
+            director.testval = self.testval
+                        
+                
+class TestTechManager(tech.TechManager):
+    def build_tree(self):
+        self.add_potential_tech( TestTechnology('tech_a', (), 40, 100))
+        self.add_potential_tech( TestTechnology('tech_b', (), 40, 200))
+        self.add_potential_tech( TestTechnology('tech_c', (), 40, 300))
+        self.add_potential_tech( tech.Technology('tech_ab', ('tech_a', 'tech_b'), 40))
+        self.add_potential_tech( tech.Technology('tech_c1', ('tech_c',), 150))
+        self.add_potential_tech( tech.Technology('tech_c2', ('tech_c',), 40))
+        self.add_potential_tech( tech.Technology('tech_x', ('tech_ab',), 400))
+        self.add_potential_tech( tech.Technology('tech_y', ('tech_ab', 'tech_c1'), 40))
+        self.add_potential_tech( tech.Technology('tech_z', ('tech_ab', 'tech_c2'), 40))
+
+                
+class TechTests(unittest.TestCase):
+    
+    def setUp(self):
+        self.techtree = TestTechManager()
+    
+    def test_base(self):
+        techtree = self.techtree
+        
+        self.assertFalse( techtree.is_researched('tech_a'))
+        self.assertFalse( techtree.is_researched('tech_ab'))
+        self.assertFalse( techtree.is_researched('tech_c1'))
+        self.assertFalse( techtree.is_researched('tech_x'))
+        
+        techtree.research('tech_a')
+        self.assertTrue( techtree.is_researched('tech_a'))
+        
+        tech_ = techtree.get_tech('tech_a')
+        self.assertEqual(tech_.tag, 'tech_a')
+        self.assertEqual(tech_.cost, 40)
+        tech_ = techtree.get_tech('tech_x')
+        self.assertEqual(tech_.tag, 'tech_x')
+        self.assertEqual(tech_.cost, 400)
+        tech_ = techtree.get_tech('tech_c1')
+        self.assertEqual(tech_.tag, 'tech_c1')
+        self.assertEqual(tech_.cost, 150)
+                
+    
+    def test_availability(self):
+        techtree = self.techtree
+        
+        self.assertTrue( techtree.tech_available('tech_a'))
+        self.assertTrue( techtree.tech_available('tech_b'))
+        self.assertTrue( techtree.tech_available('tech_c'))
+        self.assertFalse( techtree.tech_available('tech_ab'))
+        self.assertFalse( techtree.tech_available('tech_c1'))
+        self.assertFalse( techtree.tech_available('tech_c2'))
+        self.assertFalse( techtree.tech_available('tech_x'))
+        self.assertFalse( techtree.tech_available('tech_y'))
+        self.assertFalse( techtree.tech_available('tech_z'))
+        
+        techtree.research('tech_a')
+        self.assertFalse( techtree.tech_available('tech_ab'))
+        techtree.research('tech_b')
+        self.assertTrue( techtree.tech_available('tech_ab'))
+        techtree.research('tech_c')
+        self.assertTrue( techtree.tech_available('tech_c1'))
+        techtree.research('tech_c1')
+        self.assertFalse( techtree.tech_available('tech_x'))
+        self.assertFalse( techtree.tech_available('tech_y'))
+        self.assertFalse( techtree.tech_available('tech_z'))
+        techtree.research('tech_ab')
+        self.assertTrue( techtree.tech_available('tech_x'))
+        self.assertTrue( techtree.tech_available('tech_y'))
+        self.assertFalse( techtree.tech_available('tech_z'))
+        
+    def test_research_callbacks(self):
+        techtree = self.techtree
+        dummy = DummyDirector()
+        
+        techtree.research('tech_a', dummy)
+        self.assertEqual( dummy.testval, 100)
+        self.assertEqual( techtree.get_var('testval'), 100)        
+        techtree.research('tech_b', dummy)
+        self.assertEqual( techtree.get_var('testval'), 200)        
+        self.assertEqual( dummy.testval, 200)
+        techtree.research('tech_c', dummy)
+        self.assertEqual( dummy.testval, 300)
+        self.assertEqual( techtree.get_var('testval'), 300)
+        
+    def test_avail_list(self):
+        emptyset = set(())
+        techtree = self.techtree
+        
+        avail = techtree.available_techs()
+        self.assertEqual( set(avail).difference(('tech_a','tech_b','tech_c')), emptyset)
+        
+        techtree.research('tech_a')
+        techtree.research('tech_b')
+        techtree.research('tech_c')
+
+        avail = techtree.available_techs()
+        self.assertEqual( set(avail).difference(('tech_ab','tech_c1','tech_c2')), emptyset)        
+        
+        techtree.research('tech_ab')
+        techtree.research('tech_c2')
+        
+        avail = techtree.available_techs()
+        self.assertEqual( set(avail).difference(('tech_x','tech_z', 'tech_c1')), emptyset)        
+
+        
+        
+        
+        
+                
         
 def run_tests(hard_fail=False):
     res = unittest.main(module=__name__, exit=False, failfast=hard_fail)
