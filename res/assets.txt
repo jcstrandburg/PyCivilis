@@ -29,6 +29,7 @@ image claypit claypit.png
 image farm farm.png
 image altar altar.png
 
+image carcass-icon carcass.png
 image stone-icon stone-res.png
 image wood-icon wood-res.png
 image tool-icon tool-res.png

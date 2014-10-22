@@ -143,7 +143,8 @@ class TestActivity( application.Activity):
         
         materials = resource.Prototype('materials')
         food = resource.Prototype('food')
-        gathered.add_children( (materials, food))
+        carcass = resource.Prototype('carcass', downscale('carcass-icon'), concrete=True)
+        gathered.add_children( (materials, food, carcass))
         
         reeds = resource.Prototype('reeds', concrete=True)
         metal = resource.Prototype('metal', concrete=True)
@@ -236,7 +237,7 @@ class TestActivity( application.Activity):
         
         #hut
         testobj = self.director.add_simple_structure( (-600, -200), 3, ('make-tools', 'make-pots', 'butcher'), self.assets.get('hut'))
-        store1 = resource.ResourceStore(testobj, 10, ('pottery',), resource.ResourceStore.WAREHOUSE)
+        store1 = resource.ResourceStore(testobj, 5, ('pottery', 'hides'), resource.ResourceStore.WAREHOUSE)
         store2 = resource.ResourceStore(testobj, float('inf'), ('meat', 'vegetables', 'fish', 'spirit'), resource.ResourceStore.WAREHOUSE)         
         store = resource.CompositeResourceStore(testobj, (store1,store2), resource.ResourceStore.WAREHOUSE)       
         testobj.set_storage(store)
@@ -362,12 +363,9 @@ class ResearchItemAction(interface.InterfaceAction):
         if tech.cost <= spirit:
             techmgr.research(self.tag)
             consumed = director.consume_from_any_store(('spirit',), tech.cost)
-            print consumed
             if director.research_menu is not None:
                 director.research_menu.finished = True
             director.show_research_menu()
-        else:
-            print "I'm broke nigga"
 
 class GameDirector(object):
     '''Generic factory/game state mutator'''

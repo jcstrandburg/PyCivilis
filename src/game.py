@@ -101,13 +101,11 @@ class Game(object):
                     backups.append( obj)
 
         candidates.sort(key=lambda candidate: (candidate.position-position).get_length())        
-        print "Found "+str(len(candidates))+" candidates"
                     
         if ( len(candidates) > 0):
             return candidates[0].res_storage.reserve_resources(resourceType, qty)
         
         backups.sort(key=lambda candidate: (candidate.position-position).get_length())
-        print "Found "+str(len(backups))+" backups"
         
         if ( len(backups) > 0):
             return backups[0].res_storage.reserve_resources(resourceType, backups[0].res_storage.get_available_contents(resourceType))
@@ -375,13 +373,13 @@ class HerdObject(GameObject):
         
         if len( self.followers) < 3:
             self.spawn_timer += 1
-            if self.spawn_timer > 150:
+            if self.spawn_timer > 50:
                 self.add_follower(self.game.director.add_herd_follower(self))
                 self.spawn_timer = 0
                 
         if self.get_meat() < 3:
             self.grow_timer += 1
-            if self.grow_timer > 500:
+            if self.grow_timer > 100:
                 self.grow_timer = 0
                 for follower in self.followers:
                     if not follower.adult:

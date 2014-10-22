@@ -287,7 +287,7 @@ class HuntKillOrder(BaseOrder):
             self._progress += 0.05
             if self._progress >= 1:
                 self.completed = True
-                self.actor.carrying = {'type':'meat', 'qty':1}
+                self.actor.carrying = {'type':'carcass', 'qty':1}
                 self._target.finished = True
                 self._target.leader.poach(self.actor)
         else:
@@ -345,11 +345,25 @@ class ReserveResourceInStorageOrder(BaseOrder):
             self.actor.resource_reservation = self.actor.game.reserve_resource_in_storage(self.actor.position, self.resType, 1)
         
         if self.actor.resource_reservation is None:
-            print "cant find resource "+self.resType
             self.valid = False
         else:
-            print "fin"
             self.completed = True
+            
+            
+class DoButcherOrder(BaseOrder):
+    def __init__(self, actor, target_struct):
+        BaseOrder.__init__(self, actor)
+        self.target_struct = target_struct
+        
+    def do_step(self):
+        portion = self.actor.carrying['qty']        
+        self.actor.carrying = None
+        
+        self.game.director.deposit_to_any_store({'type':'meat', 'qty': 2*portion})
+        self.game.director.deposit_to_any_store({'type':'hides', 'qty': 1*portion})
+        self.actor.target_workspace.release()
+        self.completed = True        
+
 
 class GetResourceFromStorageOrder(StatefulSuperOrder):
     def __init__(self, actor, resource):
@@ -529,7 +543,7 @@ class HuntOrder(StatefulSuperOrder):
 class ConvertResourceOrder(StatefulSuperOrder):
     def __init__(self, actor, target, rawMaterial, finishedGood):
         StatefulSuperOrder.__init__(self, actor)        
-        self.targetStruct = target
+        self.target_struct = target
         self.rawMaterial = rawMaterial
         self.finishedGood = finishedGood
         self.set_state( 'seek_material')
@@ -541,10 +555,10 @@ class ConvertResourceOrder(StatefulSuperOrder):
         self.set_state("move_to_workplace")
 
     def start_move_to_workplace(self):
-        diff = -self.actor.position + self.targetStruct.position
+        diff = -self.actor.position + self.target_struct.position
         if diff.length > 125:
             length = diff.length - 125
-            targetpos = self.actor.position.interpolate_to(self.targetStruct.position, length/diff.length)
+            targetpos = self.actor.position.interpolate_to(self.target_struct.position, length/diff.length)
         else:
             targetpos = self.actor.position
         
@@ -554,7 +568,7 @@ class ConvertResourceOrder(StatefulSuperOrder):
         self.set_state("wait_for_workspace")
 
     def start_wait_for_workspace(self):
-        return WaitForWorkspaceOrder(self.actor, self.targetStruct)
+        return WaitForWorkspaceOrder(self.actor, self.target_struct)
 
     def complete_wait_for_workspace(self):
         self.set_state("move_to_workspace")
@@ -597,6 +611,24 @@ class ConvertResourceOrder(StatefulSuperOrder):
         
     def cancel(self):
         StatefulSuperOrder.cancel(self)
+
+
+class ButcherOrder(ConvertResourceOrder):
+    
+    def __init__(self, actor, target):
+        ConvertResourceOrder.__init__(self, actor, target, 'carcass', 'nothing')
+
+    def start_seek_material(self):
+        return GetResourceFromStorageOrder(self.actor, 'carcass')
+    
+    def start_do_conversion(self):
+        return DoButcherOrder(self.actor, self.target_struct)
+
+    def complete_do_conversion(self):
+        self.set_state("seek_material")
+        
+    def cancel(self):
+        StatefulSuperOrder.cancel(self)    
 
 
 class MeditateOrder(StatefulSuperOrder):
@@ -666,5 +698,7 @@ class OrderBuilder(object):
             self.selected.set_order( ConvertResourceOrder(self.selected, self.target, 'clay', 'pottery'))
         elif tag == 'make-tools':
             self.selected.set_order( ConvertResourceOrder(self.selected, self.target, 'stone', 'metal_tools'))
+        elif tag == 'butcher':
+            self.selected.set_order( ButcherOrder(self.selected, self.target))
         else:
             raise ValueError('Unrecognized tag '+str(tag))
