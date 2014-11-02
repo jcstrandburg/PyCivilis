@@ -1,0 +1,1 @@
+This folder should be filled with grass transition tiles. If they are not present they can be generated with the make_trans.py script in the resources directory.

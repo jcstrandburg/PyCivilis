@@ -447,20 +447,89 @@ class MapWidget(BaseWidget):
     _update_handler = BaseWidget._opaque_update
 
     def __init__(self, manager, game):
-        BaseWidget.__init__(self, manager, (-1600,-1600,3200,3200), LAYER_BASE)
-        self._selectable = False
-        self.img = manager.controller.assets.get("ground")
+        self.img = manager.controller.assets.get("water_tile")
+        self.img2 = manager.controller.assets.get("grass_tile")
+        self.img3 = manager.controller.assets.get("desert_tile")
+        
+        self.transitions = []
+        for i in xrange(256):
+            tag = "trans_%03d" % (i,)
+            self.transitions.append(manager.controller.assets.get(tag))
+        
         self.game = game
+        map = self.game.map
+        
+        dims = map.size
+        wdims = (dims[0]*200, dims[1]*200)
+        
+        BaseWidget.__init__(self, manager, (-wdims[0]/2,-wdims[1]/2,wdims[0],wdims[1]), LAYER_BASE)
+        self._selectable = False
+        self.buffered_map = None
+        self.buffered_topleft = None
+        self.buffered_botright = None
+        
+    def _buffer_map(self, viewport, disp_rect, topleft, botright):
+        if self.buffered_map is None:
+            self.buffered_map = pygame.Surface(viewport.surface.get_size())
+            
+        #if self.buffered_topleft == topleft and self.buffered_botright == botright:
+        #    return
+        self.buffered_topleft = topleft
+        self.buffered_botright = botright
+            
+            
+        self.buffered_map.fill((0,0,0,0))
+        img1 = viewport.transform.scale(self.img, viewport.scale)
+        img2 = viewport.transform.scale(self.img2, viewport.scale)
+        img3 = viewport.transform.scale(self.img3, viewport.scale)
 
+        map_size = self.game.map.size        
+        offset_x = map_size[0]/2
+        offset_y = map_size[1]/2
+        limit1 = (topleft[0]/200 + offset_x, topleft[1]/200 + offset_y)
+        limit2 = (botright[0]/200 + offset_x, botright[1]/200 + offset_y)
+
+        x1 = max(0, int(math.floor(limit1[0]-0.5)))
+        y1 = max(0, int(math.floor(limit1[1]-0.5)))
+        x2 = min(map_size[0], int(math.ceil(limit2[0]+0.5)))
+        y2 = min(map_size[1], int(math.ceil(limit2[1]+0.5)))
+        
+        x_range = xrange(x1,x2)
+        y_range = xrange(y1,y2)
+        
+        for u in x_range:
+            for v in y_range:
+                tile = self.game.map.get_terrain_at((u,v))
+                if tile == 0:
+                    img = img1
+                elif tile == 1:
+                    img = img2
+                elif tile == 2:
+                    img = img3
+                else:
+                    img = None
+                    
+                dim = img.get_rect()
+                pos = (disp_rect.x + u*dim.w, disp_rect.y + v*dim.h)
+                self.buffered_map.blit( img, pos)
+                
+                if tile != 1:
+                    trans = self.game.map.get_tile_at((u,v))
+                    if trans != 0:
+                        trans_tile = self.transitions[trans]
+                        trans_tile = viewport.transform.scale(trans_tile, viewport.scale)
+                        self.buffered_map.blit( trans_tile, pos)
+                                    
+        
+        
     def _draw_self(self, viewport, disp_rect):
-        img = viewport.transform.scale(self.img, viewport.scale)
-        dim = img.get_rect()
+        size = viewport.surface.get_size()
+        limit1 = viewport.translate_point((0,0), viewport_mod.SCREEN_TO_GAME)
+        limit2 = viewport.translate_point((size[0], size[1]), viewport_mod.SCREEN_TO_GAME)
         
-        for u in xrange(disp_rect.w/dim.w):
-            for v in xrange(disp_rect.h/dim.h):
-                viewport.surface.blit( img, (disp_rect.x + u*dim.w, disp_rect.y + v*dim.h))
-        
-        pygame.draw.rect(viewport.surface, (0,0,0), disp_rect, 2)
+        self._buffer_map(viewport, disp_rect, limit1, limit2)
+        viewport.surface.blit(self.buffered_map, (0,0))
+
         
     def _self_handle_event(self, event):
         if event.type == MOUSEBUTTONDOWN and event.button == 3:
@@ -866,7 +935,7 @@ class WorkspaceWidget(GameObjWidget):
 
     def _draw_self(self, viewport, disp_rect):
         img = viewport.transform.scale(self.img, viewport.scale)
-        viewport.surface.blit(img, disp_rect)
+        #viewport.surface.blit(img, disp_rect)
         
         color = (255,255,255) if self.game_object.reserved else (100,100,100)
         pygame.draw.ellipse(viewport.surface, color, disp_rect, 1)
@@ -905,7 +974,7 @@ class ResourcePileWidget( SpriteWidget):
     def _draw_self(self, viewport, disp_rect):
         SpriteWidget._draw_self(self, viewport, disp_rect)
         bar_rect = disp_rect.copy()
-        bar_rect.h = 5*viewport.scale
+        bar_rect.h = 4*viewport.scale
         bar_rect.bottom = disp_rect.bottom
         rstore = self._game_object.res_storage
         bar_rect.w = int(bar_rect.w * (rstore.get_actual_contents(None)/rstore.get_capacity()))

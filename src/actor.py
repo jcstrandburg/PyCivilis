@@ -136,9 +136,17 @@ class ExtractResourceOrder(BaseOrder):
         self._source = source
         self._resource_type = resource_type
         
+        rate = self.game.director.tech.get_var("base_work_rate")
+        try:
+            tag = self._resource_type + "_work_rate" 
+            rate *= self.game.director.tech.get_var(tag)
+        except KeyError:
+            pass
+        self.speed = rate * 0.01
+        
     def do_step(self):
         actor = self.actor
-        self.progress += 0.05
+        self.progress += self.speed
         if self.progress >= 1.0:
             reservoir = actor.target_workspace.struct.res_storage
             actor.carrying = reservoir.withdraw(self._resource_type, 1)
@@ -311,13 +319,23 @@ class DoConvertOrder(BaseOrder):
         self.fromRes = fromRes
         self.toRes = toRes
         
+        rate = self.game.director.tech.get_var("base_work_rate")
+        try:
+            tag = self.toRes + "_work_rate"
+            rate *= self.game.director.tech.get_var(tag)
+        except KeyError:
+            pass
+        
+        self.speed = rate * 0.01
+            
+        
     def do_step(self):
         if self.actor.carrying is None or self.actor.carrying['type'] != self.fromRes:
             print "Invalidating DoConvertOrder"
             self.valid = False
             return
         
-        self.progress += 0.05/self.actor.carrying['qty']
+        self.progress += self.speed/self.actor.carrying['qty']
         if self.progress >= 1:
             self.completed = True
             self.actor.target_workspace.release()
@@ -355,14 +373,21 @@ class DoButcherOrder(BaseOrder):
         BaseOrder.__init__(self, actor)
         self.target_struct = target_struct
         
-    def do_step(self):
-        portion = self.actor.carrying['qty']        
-        self.actor.carrying = None
         
-        self.game.director.deposit_to_any_store({'type':'meat', 'qty': 2*portion})
-        self.game.director.deposit_to_any_store({'type':'hides', 'qty': 1*portion})
-        self.actor.target_workspace.release()
-        self.completed = True        
+        rate = self.game.director.tech.get_var("base_work_rate") * self.game.director.tech.get_var("butcher_work_rate")
+        self.speed = 0.1*rate
+        
+    def do_step(self):
+        self.progress += self.speed
+        
+        if self.progress >= 1.0:
+            portion = self.actor.carrying['qty']        
+            self.actor.carrying = None
+            
+            self.game.director.deposit_to_any_store({'type':'meat', 'qty': 2*portion})
+            self.game.director.deposit_to_any_store({'type':'hides', 'qty': 1*portion})
+            self.actor.target_workspace.release()
+            self.completed = True        
 
 
 class GetResourceFromStorageOrder(StatefulSuperOrder):
@@ -459,7 +484,7 @@ class ForageOrder(StatefulSuperOrder):
             targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
             return SimpleMoveOrder(self.actor, targetpos)
         else:
-            return SimpleMoveOrder(self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
+            return SimpleMoveOrder(self.actor, (random.uniform(-600.0, -400.0), random.uniform(300.0, 400.0)))
 
     def complete_move_to_storage(self):
         self.set_state("store_resources")
@@ -522,7 +547,7 @@ class HuntOrder(StatefulSuperOrder):
             targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
             return SimpleMoveOrder(self.actor, targetpos)
         else:
-            return SimpleMoveOrder(self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
+            return SimpleMoveOrder(self.actor, (random.uniform(-600.0, -400.0), random.uniform(300.0, 400.0)))
 
     def complete_seek_storage(self):
         self.set_state("dump_storage")
@@ -598,7 +623,7 @@ class ConvertResourceOrder(StatefulSuperOrder):
             targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
             return SimpleMoveOrder(self.actor, targetpos)
         else:
-            return SimpleMoveOrder(self.actor, (random.uniform(-100.0, 100.0), random.uniform(-100.0, 100.0)))
+            return SimpleMoveOrder(self.actor, (random.uniform(-600.0, -400.0), random.uniform(300.0, 400.0)))
 
     def complete_move_to_storage(self):
         self.set_state("store_product")        

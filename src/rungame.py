@@ -2,6 +2,7 @@
 import pygame
 import random
 import math
+import os.path
 from pygame.locals import *
 
 #local imports
@@ -14,6 +15,7 @@ import interface
 import actor
 import resource
 import tech
+import tilemap
 
 class CivilisApp( application.Application):
     """Game specific Application class."""
@@ -183,7 +185,6 @@ class TestActivity( application.Activity):
         
         return base
 
-    
     def on_create(self, config):
         application.Activity.on_create(self, config)
         self.controller.set_fps_cap( 50)
@@ -200,6 +201,7 @@ class TestActivity( application.Activity):
         self.game.director = self.director
         self.ticker = 1
         self.options = 5
+        self.game.map = tilemap.Map((15,15))        
         
         self.game.resource_types = self.make_resource_tree()
         
@@ -236,38 +238,38 @@ class TestActivity( application.Activity):
         testobj = self.director.add_herd( (0,0))
         
         #hut
-        testobj = self.director.add_simple_structure( (-600, -200), 3, ('make-tools', 'make-pots', 'butcher'), self.assets.get('hut'))
+        testobj = self.director.add_simple_structure( (-1100, -200), 3, ('make-tools', 'make-pots', 'butcher'), self.assets.get('hut'))
         store1 = resource.ResourceStore(testobj, 5, ('pottery', 'hides'), resource.ResourceStore.WAREHOUSE)
         store2 = resource.ResourceStore(testobj, float('inf'), ('meat', 'vegetables', 'fish', 'spirit'), resource.ResourceStore.WAREHOUSE)         
         store = resource.CompositeResourceStore(testobj, (store1,store2), resource.ResourceStore.WAREHOUSE)       
         testobj.set_storage(store)
         
         #farm
-        testobj = self.director.add_simple_structure( (-400,  200), 1, ('gather-corn',), self.assets.get('farm'))
+        testobj = self.director.add_simple_structure( (-300,  800), 1, ('gather-corn',), self.assets.get('farm'))
         testobj.set_reservoir(10, ('vegetables'), 0.01)
         
         #storehouse
-        testobj = self.director.add_simple_structure( (-200, -200), 0, (), self.assets.get('storehouse'))
-        testobj.set_warehouse(2, ('clay', 'wood', 'stone'))        
+        #testobj = self.director.add_simple_structure( (-200, -200), 0, (), self.assets.get('storehouse'))
+        #testobj.set_warehouse(2, ('clay', 'wood', 'stone'))        
         
         #altar
-        testobj = self.director.add_simple_structure( (0,  200), 1, ('meditate',), self.assets.get('altar'))
+        testobj = self.director.add_simple_structure( (-50,  400), 1, ('meditate',), self.assets.get('altar'))
         testobj.set_reservoir(float('inf'), 'spirit', 0)        
         
         #claypit
-        testobj = self.director.add_simple_structure( (200, -200), 1, ('gather-clay',), self.assets.get('claypit'))
+        testobj = self.director.add_simple_structure( (-800, 550), 1, ('gather-clay',), self.assets.get('claypit'))
         testobj.set_reservoir(10, 'clay', 0.01)
         
         #rock
-        testobj = self.director.add_simple_structure( (400,  200), 1, ('mine',), self.assets.get('rock'))
+        testobj = self.director.add_simple_structure( (-350,  -50), 1, ('mine',), self.assets.get('rock'))
         testobj.set_reservoir(20, 'stone', 0.001)
         
         #trees
-        testobj = self.director.add_simple_structure( (600, -200), 2, ('cut-wood',), self.assets.get('tree'))
+        testobj = self.director.add_simple_structure( (-1100, 600), 2, ('cut-wood',), self.assets.get('tree'))
         testobj.set_reservoir(5, 'wood', 0.01)
         
         #hud
-        panel = interface.Panel(self.iface, (0,0,800,50))
+        panel = interface.Panel(self.iface, (0,0,800,30))
         gen = interface.CompositeTextGenerator([interface.StaticText('Foodbuffer: '), interface.LambdaTextGenerator(lambda: self.director.food_buffer)])
         text = interface.TextLabel(self.iface, (10,10), 'medfont', gen)
         panel.add_child(text)
@@ -276,8 +278,7 @@ class TestActivity( application.Activity):
                     interface.LambdaTextGenerator(lambda: self.director.get_total_available_stored_resources(('spirit',))),
                     ])
         text = interface.TextLabel(self.iface, (400,10), 'medfont', gen)
-        panel.add_child(text)
-        
+        panel.add_child(text)        
         
         button = interface.TextButton(self.iface, (600,10), 'medfont', interface.StaticText('Research'), ResearchMenuAction())
         panel.add_child(button)
@@ -340,6 +341,22 @@ class TestActivity( application.Activity):
                 self.options = min(self.options+1, 8)
             elif event.key == K_ESCAPE:
                 self.finish()
+            elif event.key == K_m:
+                self.game.map = tilemap.Map((15,15))
+            elif event.key == K_n:
+                self.game.map.grow_grass()
+            elif event.key == K_k:
+                self.game.map.save("map.txt")
+            elif event.key == K_l:
+                self.game.map.load("map.txt")
+            elif event.key == K_F1:
+                i = 0
+                while True:
+                    path = "screen%d.png" % i
+                    if not os.path.isfile(path):
+                        pygame.image.save(self.vp.surface, path)
+                        break
+                    i += 1
 
 class ResearchMenuAction(interface.InterfaceAction):
         

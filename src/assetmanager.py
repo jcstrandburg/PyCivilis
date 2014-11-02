@@ -20,7 +20,10 @@ class _Asset(object):
 class ImageLoader(object):
     """Simple asset loader class that loads images"""
     def load(self, path):
-        return pygame.image.load(path)
+        try:
+            return pygame.image.load(path)
+        except:
+            print path
 
 class SoundLoader(object):
     """Simple sound loader class that loads audio files"""
