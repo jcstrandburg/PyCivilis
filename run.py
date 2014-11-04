@@ -1,7 +1,13 @@
 import sys
+import cProfile
+import os.path
 import src.rungame
 import src.unittests
-import cProfile
+import res.make_trans
+
+
+if not os.path.isfile("res/trans/trans_000.png"):
+    res.make_trans.main('res/', 'res/trans/')
 
 src.unittests.run_tests(False)
 src.rungame.run()

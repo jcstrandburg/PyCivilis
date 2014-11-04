@@ -1,9 +1,9 @@
 import pygame
 
-def main():
-    side_trans = pygame.image.load('side_trans.png')
-    corner_trans = pygame.image.load('corner_trans.png')
-    bigcorner_trans = pygame.image.load('bigcorner_trans.png')
+def main(srcpath, dstpath):
+    side_trans = pygame.image.load(srcpath+'side_trans.png')
+    corner_trans = pygame.image.load(srcpath+'corner_trans.png')
+    bigcorner_trans = pygame.image.load(srcpath+'bigcorner_trans.png')
     
     base_trans = {}
     base_trans[1] = side_trans
@@ -37,13 +37,13 @@ def main():
                 output.blit(base_trans[j], (0,0))
             
             
-        filename = "trans/trans_%03d.png" % (i,)
+        filename = "%strans_%03d.png" % (dstpath, i,)
         #print "image trans_%03d %s" % (i, filename)
         pygame.image.save(output, filename)
         
-        #if int(i / 25.5) > progress:
-        #    progress = int(i / 25.5)
-        #    print "Progress %d%%" % (progress*10)
+        if int(i / 25.5) > progress:
+            progress = int(i / 25.5)
+            print "Progress %d%%" % (progress*10)
 
-
-main()
+if __name__ == "__main__":
+    main('./','trans/')
