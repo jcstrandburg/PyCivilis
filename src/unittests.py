@@ -5,6 +5,7 @@ import game
 import actor
 from rungame import GameDirector
 import tech
+import path
 
 class ResourceStoreTest(unittest.TestCase):
     def setUp(self):
@@ -979,16 +980,122 @@ class TechTests(unittest.TestCase):
         self.assertEqual( set(avail).difference(('tech_x','tech_z', 'tech_c1')), emptyset)        
 
         
+class PathTests(unittest.TestCase):
+    
+    def setUp(self):
+        pass        
+        
+    def test_simple_PathMap(self):
+        tiles = [[0,]*5 for i in range(5)]
+        tiles[3][2] = 1
+        tiles[4][1] = 1
         
         
+        pmap = path.PathMap(tiles)
         
+        self.assertEqual(pmap.shape, (5,5))
+        self.assertEqual(set(pmap.neighbor_tiles((0,0))), set([(1,0),(0,1)]))
+        self.assertEqual(set(pmap.neighbor_tiles((1,1))), set([(1,0),(1,2),(0,1),(2,1),]))
+        self.assertEqual(set(pmap.neighbor_tiles((3,2))), set([(3,1),(3,3),(2,2),(4,2),]))
+        self.assertEqual(set(pmap.neighbor_tiles((4,4))), set([(4,3),(3,4),]))
+        
+        self.assertEqual(pmap.tile_passable((2,3)), False)
+        self.assertEqual(pmap.tile_passable((1,4)), False)
+        self.assertEqual(pmap.tile_passable((1,1)), True)
+        self.assertEqual(pmap.tile_passable((3,2)), True)
+        self.assertEqual(pmap.tile_passable((4,1)), True)
+        
+    def test_clear_map_path(self):
+        tiles = ((0,)*5,)*5
+        pmap = path.PathMap(tiles)
+        pather = path.PathFinder((0,0), (0,4), pmap)
+        
+        self.assertEqual(pather.open_set, set([(0,0)]))
+        
+        the_path = pather.find_path()        
+        self.assertEqual(len(the_path), 5)
+        
+        came_from = pather.came_from
+        self.assertEqual(came_from[(0,4)], (0,3))
+        self.assertEqual(came_from[(0,3)], (0,2))
+        self.assertEqual(came_from[(0,2)], (0,1))
+        self.assertEqual(came_from[(0,1)], (0,0))
+        
+    def test_actual_map_path(self):
+        tiles = [[0,]*5 for i in range(5)]
+        tiles[1][0] = 1
+        tiles[1][4] = 1
+        tiles[0][2] = 1
+        
+        pmap = path.PathMap(tiles)
+        self.assertFalse(pmap.tile_passable((2,0)))
+        self.assertTrue(pmap.tile_passable((2,1)))
+        
+        pather = path.PathFinder((0,0), (4,0), pmap)
+        the_path = pather.find_path()
+        self.assertEqual(len(the_path), 7)
+        
+        came_from = pather.came_from
+        self.assertEqual(came_from[(4,0)], (3,0))
+        self.assertEqual(came_from[(3,0)], (3,1))
+        self.assertEqual(came_from[(3,1)], (2,1))
+        self.assertEqual(came_from[(2,1)], (1,1))
+        self.assertEqual(came_from[(1,1)], (1,0))
+        self.assertEqual(came_from[(1,0)], (0,0))
+        
+    def test_walkability(self):
+        tiles = [[0,]*4 for i in range(4)]
+        tiles[2][1] = 1
+        pmap = path.PathMap(tiles)
+        
+        self.assertTrue(pmap.walkable((1,1), (2,1)))
+        self.assertTrue(pmap.walkable((1,1), (0,0)))
+        self.assertTrue(pmap.walkable((1,1), (3,1)))
+        self.assertFalse(pmap.walkable((1,1), (1,3)))
+        self.assertFalse(pmap.walkable((1,1), (2,4)))
+        self.assertFalse(pmap.walkable((1,1), (3,4)))
+        
+        self.assertTrue(pmap.walkable((1,0), (2,2)))
+        #self.assertFalse(pmap.walkable((1,0), (2,3)))
+        
+    def test_walkability2(self):
+        tiles = [[0,]*3 for i in range(3)]
+        tiles[1][1] = 1
+        pmap = path.PathMap(tiles)
+        
+        self.assertTrue(pmap.walkable((0,0), (2,0)))
+        self.assertTrue(pmap.walkable((0,0), (0,2)))
+        self.assertTrue(pmap.walkable((1,0), (2,0)))
+        self.assertFalse(pmap.walkable((0,0), (2,2)))
+        self.assertFalse(pmap.walkable((0,0), (2,1)))
+        self.assertFalse(pmap.walkable((0,0), (1,2)))
+        
+    def test_simplification(self):
+        tiles = [[0,]*4 for i in range(4)]
+        pmap = path.PathMap(tiles)
+        pather = path.PathFinder((0,0), (3,0), pmap)
+        
+        self.assertEqual(pather.simplify( [(0,0), (1,0), (2,0), (3,0)]), [(0,0), (3,0)])
+        self.assertEqual(pather.simplify( [(3,0), (3,1), (3,2)]), [(3,0), (3,2)])
+        self.assertEqual(pather.simplify( [(0,0), (1,0), (2,0), (3,0), (3,1), (3,2)]), [(0,0), (3,2)])
+        
+        tiles = [[0,]*4 for i in range(4)]
+        tiles[1][2] = 1
+        pmap = path.PathMap(tiles)
+        pather = path.PathFinder((0,0), (3,2), pmap)
+        
+        source_path = [(0,0), (1,0), (2,0), (3,0), (3,1), (3,2)]
+        simple_path = pather.simplify(source_path)
+        self.assertEqual(simple_path, [(0,0), (3,0), (3,2)])
+       
                 
         
 def run_tests(hard_fail=False):
     res = unittest.main(module=__name__, exit=False, failfast=hard_fail)
     
-    count = res.result.errors + res.result.failures
+    count = len(res.result.errors) + len(res.result.failures)
     if hard_fail and count > 0:
+        print res.result.errors, res.result.failures
         print "Hard failure, bailing out. There may be more failures"
         exit()
     

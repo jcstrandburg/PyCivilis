@@ -467,6 +467,7 @@ class MapWidget(BaseWidget):
         self.buffered_map = None
         self.buffered_topleft = None
         self.buffered_botright = None
+        self.tile_size = 200
         
     def _buffer_map(self, viewport, disp_rect, topleft, botright):
         if self.buffered_map is None:
@@ -535,7 +536,7 @@ class MapWidget(BaseWidget):
         if event.type == MOUSEBUTTONDOWN and event.button == 3:
             sel = self.game.selected_obj
             if sel is not None and hasattr(sel, "set_order"):
-                sel.set_order( actor.SimpleMoveOrder(sel, event.gamepos))            
+                sel.set_order( actor.PathToOrder(sel, event.gamepos))
                 return True
         return BaseWidget._self_handle_event(self, event)
             

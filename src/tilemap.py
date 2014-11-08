@@ -1,17 +1,24 @@
+import path
+
 import numpy
 import noise
 import math
 import pickle
 
+class PathableMap(path.PathMap):
+    def tile_passable(self, pos):
+        return self.tiles[pos[0]][pos[1]] > 0
+
 class Map(object):
     
     coords = ( (0,-1), (1,0), (0,1), (-1,0), (1,-1), (1,1), (-1,1), (-1,-1), )
     
-    def __init__(self, dims, filepath=None):
+    def __init__(self, dims, tilesize=(200,200), filepath=None):
         assert(len(dims) == 2)
         self.terrain = numpy.zeros(dims, numpy.int)
         self.tiles = numpy.zeros(dims, numpy.int)
         self.size = dims
+        self.tilesize = tilesize
         
         ndims = (max(dims[0]/15, 1), max(dims[1]/15, 1))
         gen = noise.LayeredNoise2D(ndims, 4, 0.75)
@@ -31,8 +38,8 @@ class Map(object):
                 else:
                     self.terrain[x][y] = 2
                     
+        self.grow_grass()                    
         average = sample / sample_size
-        print "Average is: "+str(average)        
         self.compute_tiles()
 
     def save(self, filepath):
@@ -56,10 +63,7 @@ class Map(object):
                     for c in neighbors:
                         if self.terrain_equal((x+c[0],y+c[1]),0):
                             self.terrain[x][y] = 1
-                            print "Converting %d %d to grass" % (x,y)
                             break
-                        
-        self.compute_tiles()
         
     def get_terrain_at(self, pos):
         return self.terrain[pos[0]][pos[1]]
@@ -87,4 +91,39 @@ class Map(object):
         return self.tiles[pos[0]][pos[1]]
 
     def set_tile_at(self, pos, value):
-        self.tiles[pos[0]][pos[1]] = value    
+        self.tiles[pos[0]][pos[1]] = value
+        
+    def game_coords_to_map(self, coords):
+        return (int((coords[0] + self.size[0]*self.tilesize[0]/2)/self.tilesize[0]), int((coords[1] + self.size[1]*self.tilesize[1]/2)/self.tilesize[1]))
+
+    def map_coords_to_game(self, pos, center=True):
+        if center:
+            pos = (pos[0]+0.5, pos[1]+0.5)
+        return (pos[0]*self.tilesize[0] - (self.size[0]*self.tilesize[0]/2), pos[1]*self.tilesize[1] - (self.size[1]*self.tilesize[1]/2))        
+        
+    def find_map_path(self, start, finish):
+        pmap = PathableMap(self.terrain)
+        pather = path.PathFinder(start, finish, pmap)
+        
+        the_path = pather.find_path(True)
+        if the_path is None:
+            return None
+        else:
+            return the_path
+
+    def find_game_path(self, start, finish):        
+        base_path = self.find_map_path(self.game_coords_to_map(start), self.game_coords_to_map(finish))
+        if base_path is None:
+            return None
+        
+        final_path = [self.map_coords_to_game(p) for p in base_path]
+        final_path[0] = start
+        final_path[-1] = finish
+        
+        return final_path          
+        
+    def reachable(self, start, finish):
+        pmap = PathableMap(self.terrain)
+        pather = path.PathFinder(start, finish, pmap)        
+        the_path = pather.find_path(False)
+        

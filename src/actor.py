@@ -113,7 +113,39 @@ class SimpleMoveOrder(BaseOrder):
         dist = self.actor.move_toward( self.targ_pos, self.move_rate)
         if dist < 1:
             self.completed = True
+            
+class FollowPathOrder(BaseOrder):
+    def __init__(self, actor, path, move_rate=1.0):
+        BaseOrder.__init__(self, actor)
+        self.path_node = 0
+        self.actor = actor
+        self.move_rate = move_rate
+        self.path = path
+        if path is not None:
+            self.suborder = SimpleMoveOrder(actor, self.path[0], self.move_rate)
+        else:
+            self.suborder = None
+            self.valid = None
+        
+    def do_step(self):
+        if self.suborder is None:
+            self.valid = False
+            return
+        
+        if self.suborder.completed:
+            self.path_node += 1
+            if self.path_node >= len(self.path):
+                self.completed = True
+                return
+            self.suborder = SimpleMoveOrder(self.actor, self.path[self.path_node], self.move_rate)
+            
+        self.suborder.do_step()
 
+class PathToOrder(FollowPathOrder):
+    def __init__(self, actor, destination, move_rate=1.0):
+        path = actor.game.map.find_game_path(actor.position, destination)
+        FollowPathOrder.__init__(self, actor, path, move_rate)
+        
 
 class IdleOrder(StatefulSuperOrder):
     def __init__(self, actor):

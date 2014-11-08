@@ -3,6 +3,7 @@ import pygame
 import random
 import math
 import os.path
+import numpy
 from pygame.locals import *
 
 #local imports
@@ -16,6 +17,7 @@ import actor
 import resource
 import tech
 import tilemap
+import path
 
 class CivilisApp( application.Application):
     """Game specific Application class."""
@@ -36,100 +38,88 @@ class DictEvent(object):
             if hasattr(event, s):
                 self.__dict__[s] = getattr(event, s)
 
-class CircuitFollower(object):
-    def __init__(self, herd):
-        self.move_speed = 1.0
-        self.herd = herd
-        self.target = self.herd.position
-        self.position = self.herd.position
-        
-    def update(self):
-        diff = self.target - self.position
-        if diff.length <= self.move_speed:
-            x = 30
-            self.target = self.herd.position + (random.uniform(-x,x), random.uniform(-x,x))
-        else:
-            self.position = self.position.interpolate_to( self.target, self.move_speed/diff.length)
 
-class CircuitHerd(object):
-    def __init__(self, circuit):
-        self.move_speed = 1.5
-        self.circuit = circuit
-        self.position = circuit[0]
-        self.node = 0
+class AstarActivity( application.Activity):
     
-    def update(self):
-        diff = self.circuit[self.node] - self.position
-        if diff.length <= self.move_speed:
-            self.node = (self.node + 1)%len(self.circuit)
-        else:
-            print diff.length
-            self.position = self.position.interpolate_to( self.circuit[self.node], self.move_speed/diff.length)
-
-class CircuitActivity( application.Activity):
+    tile_size = 40
     
     def on_create(self, config):
         self.screen = self.controller.screen
         
-        self.make_circuit()
+        self.tiles = numpy.random.randint(0,3,(20,20))
+        shape = self.tiles.shape
+        for y in xrange(shape[0]):
+            for x in xrange(shape[1]):
+                if self.tiles[y][x] == 2:
+                    self.tiles[y][x] = 0
+                    
+        self.origin = (0,0)
+        self.dest = (19,19)
+        self.path = None
         
-    def make_circuit(self):
-        self.num_nodes = 10
-        center = self.screen.get_rect().center
-        
-        aspect = random.uniform(2.0/4, 4.0/2)
-        basedir = random.uniform(0.0, 2*math.pi)        
-        incr = 2*math.pi/self.num_nodes
-        direc = [0]*self.num_nodes
-        for i in xrange(self.num_nodes):
-            direc[i] = i*incr + random.uniform(-incr/3.0, incr/3.0)
-        
-        self.nodes = []
-        for i in xrange(self.num_nodes):
-            l = 200 * random.uniform(1.0, 1.25)
-            pos = vector.Vec2d(math.sin(direc[i])*l*aspect, -math.cos(direc[i])*l/aspect)
-            
-            cos = math.cos(basedir)
-            sin = math.sin(basedir)
-            pos = vector.Vec2d( pos[0]*cos - pos[1]*sin, pos[0]*sin + pos[1]*cos)
-            pos += center
-            
-            self.nodes.append(pos)
-        
-        #herd stuff
-        self.num_followers = 4
-        self.herd = CircuitHerd(self.nodes)
-        self.followers = [CircuitFollower(self.herd) for i in xrange(self.num_followers)]
-
     def handle_event(self, event):
+        pos = pygame.mouse.get_pos()
+        x, y = pos[0]/self.tile_size, pos[1]/self.tile_size
+        
+        if event.type == pygame.MOUSEBUTTONDOWN:            
+            
+            if event.button == 1:
+                self.tiles[y][x] = 1
+            elif event.button == 3:
+                self.tiles[y][x] = 0
         if event.type == pygame.KEYDOWN:
             if event.key == K_SPACE:
-                self.make_circuit()
+                self.find_path()
+            elif event.key == K_1:
+                self.origin = x,y
+            elif event.key == K_2:
+                self.dest = x,y
+            elif event.key == K_a:
+                self.show_walkability()
+
+    def find_path(self):
+        pathmap = path.PathMap(self.tiles)
+        path_finder = path.PathFinder(self.origin, self.dest, pathmap)
+        self.path = path_finder.find_path(False)
+        self.simple_path = path_finder.simplify(self.path)
+        if self.path is None:
+            print "No path found"
+        else:
+            print len(self.path)
+
+    def show_walkability(self):
+        pathmap = path.PathMap(self.tiles)
+        print pathmap.walkable(self.origin, self.dest)
                 
     def update(self):
-        self.herd.update()
-        for fol in self.followers:
-            fol.update()
+        pass
     
     def draw(self):
-        rect = self.screen.get_rect()
-        center = rect.center
+        shape = self.tiles.shape
         
-        for i in xrange(len(self.nodes)-1):
-            pos1 = self.nodes[i]
-            pos2 = self.nodes[i+1]
-            
-            pygame.draw.line(self.screen, (0,0,0), pos1.int_tuple, pos2.int_tuple)
+        full = (0,0,0)
+        empty = (200,200,240)
         
-        for n in self.nodes:
-            pos = n
-            pygame.draw.circle(self.screen, (0,50,200), pos.int_tuple, 10)
+        for y in xrange(shape[0]):
+            for x in xrange(shape[1]):
+                disp_rect = pygame.Rect(x*self.tile_size,y*self.tile_size,self.tile_size,self.tile_size)
+        
+                tile = self.tiles[y][x]
+                if tile:
+                    color = full
+                else:
+                    color = empty
+                pygame.draw.rect(self.screen, color, disp_rect)
+                
+        pygame.draw.circle(self.screen, (255,0,0), (self.origin[0]*self.tile_size + self.tile_size/2, self.origin[1]*self.tile_size + self.tile_size/2), self.tile_size/2)
+        pygame.draw.circle(self.screen, (0,0,255), (self.dest[0]*self.tile_size + self.tile_size/2, self.dest[1]*self.tile_size + self.tile_size/2), self.tile_size/2)
+        
+        if self.path is not None:
+            points = [(p[0]*self.tile_size + self.tile_size/2, p[1]*self.tile_size + self.tile_size/2) for p in self.path]
+            pygame.draw.lines(self.screen, (0,125,0), False, points)
             
-        pygame.draw.circle(self.screen, (250,250,250), self.herd.position.int_tuple, 8)
-        for fol in self.followers:
-            pygame.draw.circle(self.screen, (250,250,0), fol.position.int_tuple, 5)            
-            
-
+            points = [(p[0]*self.tile_size + self.tile_size/2, p[1]*self.tile_size + self.tile_size/2) for p in self.simple_path]
+            pygame.draw.lines(self.screen, (0,0,200), False, points)            
             
 class TestActivity( application.Activity):
     """Test activity for debugging."""
@@ -201,7 +191,7 @@ class TestActivity( application.Activity):
         self.game.director = self.director
         self.ticker = 1
         self.options = 5
-        self.game.map = tilemap.Map((15,15))        
+        self.game.map = tilemap.Map((16,16))        
         
         self.game.resource_types = self.make_resource_tree()
         
@@ -342,7 +332,7 @@ class TestActivity( application.Activity):
             elif event.key == K_ESCAPE:
                 self.finish()
             elif event.key == K_m:
-                self.game.map = tilemap.Map((15,15))
+                self.game.map = tilemap.Map((16,16))
             elif event.key == K_n:
                 self.game.map.grow_grass()
             elif event.key == K_k:

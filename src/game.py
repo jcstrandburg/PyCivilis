@@ -21,6 +21,11 @@ class Game(object):
         for o in self._objects:
             o.update()
 
+        for o in self._objects:
+            for p in self._objects:
+                if o is not p:
+                    o.collide_with(p)
+
         #remove "finished" objects
         i, j = 0, 0
         while j < len(self._objects):
@@ -116,7 +121,7 @@ class Game(object):
 class GameObject(object):
     """Base class for all objects that exist within the game simulation."""
 
-    def __init__(self, gamemgr, size=(100,100), position=(0,0)):
+    def __init__(self, gamemgr, size=(100,100), position=(0,0), mass=10.0):
         """Initialize with the given game."""
         self.finished = False
         self.rect = pygame.Rect(0,0,size[0],size[1])
@@ -130,6 +135,7 @@ class GameObject(object):
         self.target_actions = set([])
         self.abilities = set([])
         self.move_speed = 1.0
+        self.mass = mass
 
     def _set_pos(self, pos):
         self.rect.center = self._position = vector.Vec2d(pos)
@@ -139,6 +145,18 @@ class GameObject(object):
         
     position = property( _get_pos, _set_pos, 
                 doc="""Center position of the object""")
+
+    def collide_with(self, other):
+        if self.rect.colliderect(other.rect):
+            self.seperate_from(other)
+            other.seperate_from(self)
+            
+    def seperate_from(self, other):
+        move_direction = (self.position - other.position).normalized()
+        collide_rect = self.rect.clip(other.rect)
+        move_speed = max(collide_rect.w, collide_rect.h)/self.mass
+        self.position += move_direction * move_speed
+
                 
     def select(self):
         self.game.select( self)
@@ -197,7 +215,7 @@ class GameObject(object):
 class Workspace(GameObject):
 
     def __init__(self, game, structure, pos):
-        GameObject.__init__(self, game, (50,50), pos)
+        GameObject.__init__(self, game, (50,50), pos, float('inf'))
         self.reserved = False
         self.struct = structure
         
@@ -224,7 +242,7 @@ class WorkspaceReservation(reservation.Reservation):
 class StructureObject(GameObject):
 
     def __init__(self, game, size=(100,100), position=(0,0), num_workspaces=1):
-        GameObject.__init__(self,game,size,position)
+        GameObject.__init__(self,game,size,position,float('inf'))
         self.workspaces = []
         self.reservations = []
         self.ready_reservations = []
@@ -340,7 +358,7 @@ class HerdMember(GameObject):
 
 class HerdObject(GameObject):
     def __init__(self, gamemgr, circuit):
-        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,30,30), circuit[0])
+        GameObject.__init__(self, gamemgr, pygame.Rect(0,0,0,0), circuit[0])
         self.dir = 1
         self.move_speed = 0.9
         self.circuit = circuit
