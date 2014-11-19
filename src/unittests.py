@@ -1088,7 +1088,51 @@ class PathTests(unittest.TestCase):
         simple_path = pather.simplify(source_path)
         self.assertEqual(simple_path, [(0,0), (3,0), (3,2)])
        
-                
+
+class DummyGameMgr(object):
+    def __init__(self):
+        self.director = self
+    
+    def new_object_id(self):
+        return 0
+    
+    def consume_food(self, amount):
+        pass
+
+class DummyOrder(actor.BaseOrder):
+    def __init__(self, test_list):
+        self.test_list = test_list
+        
+    def do_step(self):
+        self.test_list.append( len(self.test_list)+1)
+        self.completed = True
+
+class ActorOrderQueueTests(unittest.TestCase):
+    
+    def test_base_queue(self):
+        a = actor.Actor(DummyGameMgr(), (0,0))
+        l = []
+        a.queue_order(DummyOrder(l))
+        a.queue_order(DummyOrder(l))
+        a.queue_order(DummyOrder(l))
+        a.queue_order(DummyOrder(l))
+        
+        a.update()
+        self.assertEqual( len(l), 1)
+        self.assertEqual( sum(l), 1)
+        a.update()
+        self.assertEqual( len(l), 2)
+        self.assertEqual( sum(l), 3)
+        a.update()
+        self.assertEqual( len(l), 3)
+        self.assertEqual( sum(l), 6)
+        a.update()
+        self.assertEqual( len(l), 4)
+        self.assertEqual( sum(l), 10)
+        a.update()
+        self.assertEqual( len(l), 4)
+        self.assertEqual( sum(l), 10)
+        
         
 def run_tests(hard_fail=False):
     res = unittest.main(module=__name__, exit=False, failfast=hard_fail)

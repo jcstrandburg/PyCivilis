@@ -66,9 +66,13 @@ class Map(object):
                             break
         
     def get_terrain_at(self, pos):
+        if pos[0] < 0 or pos[1] < 0:
+            raise IndexError("Index out of bounds: "+str(pos))        
         return self.terrain[pos[0]][pos[1]]
     
     def set_terrain_at(self, pos, value):
+        if pos[0] < 0 or pos[1] < 0:
+            raise IndexError("Index out of bounds: "+str(pos))        
         self.terrain[pos[0]][pos[1]] = value
 
     def terrain_equal(self, pos, value):
@@ -88,9 +92,13 @@ class Map(object):
         return int(field)
             
     def get_tile_at(self, pos):
+        if pos[0] < 0 or pos[1] < 0:
+            raise IndexError("Index out of bounds: "+str(pos))
         return self.tiles[pos[0]][pos[1]]
 
     def set_tile_at(self, pos, value):
+        if pos[0] < 0 or pos[1] < 0:
+            raise IndexError("Index out of bounds: "+str(pos))        
         self.tiles[pos[0]][pos[1]] = value
         
     def game_coords_to_map(self, coords):
@@ -99,7 +107,21 @@ class Map(object):
     def map_coords_to_game(self, pos, center=True):
         if center:
             pos = (pos[0]+0.5, pos[1]+0.5)
-        return (pos[0]*self.tilesize[0] - (self.size[0]*self.tilesize[0]/2), pos[1]*self.tilesize[1] - (self.size[1]*self.tilesize[1]/2))        
+        return (pos[0]*self.tilesize[0] - (self.size[0]*self.tilesize[0]/2), pos[1]*self.tilesize[1] - (self.size[1]*self.tilesize[1]/2))
+    
+    def map_area_clear(self, topleft, botright):
+        try:
+            for x in xrange(topleft[0], botright[0]+1):
+                for y in xrange(topleft[1], botright[1]+1):
+                    if self.get_terrain_at((x,y)) == 0:
+                        return False
+                    
+            return True
+        except IndexError:
+            return False
+    
+    def game_area_clear(self, topleft, botright):
+        return self.map_area_clear( self.game_coords_to_map(topleft), self.game_coords_to_map(botright))
         
     def find_map_path(self, start, finish):
         pmap = PathableMap(self.terrain)

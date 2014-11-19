@@ -3,7 +3,7 @@
 import pygame
 from pygame.locals import *
 import math
-import types
+import sets
 
 #local imports
 import vector
@@ -20,6 +20,13 @@ LAYER_IFACE         = 40
 LAYER_IFACE_LOWER   = 40
 LAYER_IFACE_UPPER   = 50
 
+#event handling flags
+EVENT_UNHANDLED         = 0
+EVENT_HANDLED           = 1
+EVENT_PRESERVE_CONTEXT  = 2
+
+
+tester = sets.Set()
 
 class InterfaceManager( object):
     """Class that manages and controls a generic interface system."""
@@ -68,9 +75,10 @@ class InterfaceManager( object):
         self.add_child( cmenu)
         
     def cancel_context_menu(self):
+        
         """Removes current context menu."""
         if self._context_menu is not None:
-            self._children.remove( self._context_menu)
+            self._context_menu.finished = True
             self._context_menu = None
             
     def set_selection_menu(self, smenu):
@@ -96,19 +104,19 @@ class InterfaceManager( object):
     def _find_mouseovers(self):
         """Returns a list of elements under the mouse object,
         sorted by layer (higher layers occur first in list."""
-        retval = []
+        mouseovers = []
         for c in self._children:
             if c._mouseover:
-                retval.append( c)
+                mouseovers.append( c)
 
-        return sorted(retval, key=lambda obj: -obj.layer)
+        return sorted(mouseovers, key=lambda obj: (-obj.layer, -obj._space_rect.bottom))
                 
     def handle_event(self, event):
         """Attempts to handle a pygame input event by sending it
         to all appropriate interface objects for the given event type.
         Will immediately return True on finding an object that handles
         the event, or return false if the event was not handled."""
-        handled = False        
+        handled = EVENT_UNHANDLED        
         
         if event.type == KEYDOWN:
             #send event to selected object
@@ -118,22 +126,27 @@ class InterfaceManager( object):
             #send event to all mouseover objects
             mouseovers = self._find_mouseovers()
             for m in mouseovers:
-                if m.handle_event(event):
-                    handled = True
+                handled = handled | m.handle_event(event)
+                if handled:
                     break
         elif event.type == MOUSEMOTION:
             for widget in self._motion_listeners:
-                handled = handled or widget.handle_event(event)
+                handled = handled | widget.handle_event(event)
                 if handled:
                     return handled
 
         if not handled:
             if event.type == MOUSEBUTTONDOWN:
-                if event.button in (1,3):
-                    self.cancel_context_menu()
+                '''if event.button in (1,3):
+                    self.cancel_context_menu()'''                
                 if event.button == 1:
                     self.selected_obj = None
-                    
+
+        if event.type == MOUSEBUTTONDOWN and not (handled & EVENT_PRESERVE_CONTEXT):
+            if event.button in (1,3):
+                self.cancel_context_menu()  
+
+            
         return handled        
         
     def _set_selected_obj(self, sel):
@@ -285,18 +298,18 @@ class WidgetBehavior(object):
         
     """Event handlers"""
     def _self_handle_event(self,event):
-        handled = False
+        handled = EVENT_UNHANDLED
         if self._mouseover:
             if event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
                     if self._lclick_action is not None:
-                        handled = handled or self.manager.do_action( self, self._lclick_action)
+                        handled = handled | self.manager.do_action( self, self._lclick_action)
                     if self._selectable:
                         self.manager.selected_obj = self
-                        handled = True
+                        handled = EVENT_HANDLED
                 elif event.button == 3:
                     if self._rclick_action is not None:
-                        handled = handled or self.manager.do_action( self, self._rclick_action)                        
+                        handled = handled | self.manager.do_action( self, self._rclick_action)                        
                 
         return handled
 
@@ -305,7 +318,7 @@ class WidgetBehavior(object):
             response = c.handle_event(event)
             if response:
                 return response
-        return False
+        return EVENT_UNHANDLED
 
     def _standard_event_handler(self, event):#children first, then me
         response = self._children_handle_event(event)
@@ -323,7 +336,7 @@ class WidgetBehavior(object):
         return self._children_handle_event(event)
 
     def _super_deaf_event_handler(self, event):
-        return False
+        return EVENT_UNHANDLED
    
    
 class BaseWidget(WidgetBehavior):
@@ -361,18 +374,18 @@ class BaseWidget(WidgetBehavior):
     def handle_event(self, event):
         """Handles a pygame input event."""
         
-        handled = False
+        handled = EVENT_UNHANDLED
         if self.mouse_is_over():
             if event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
                     if self._lclick_action is not None:
-                        handled = handled or self.manager.do_action( self, self._lclick_action)
+                        handled = handled | self.manager.do_action( self, self._lclick_action)
                     if self._selectable:
                         self.manager.selected_obj = self
-                        handled = True
+                        handled = EVENT_HANDLED
                 elif event.button == 3:
                     if self._rclick_action is not None:
-                        handled = handled or self.manager.do_action( self, self._rclick_action)                        
+                        handled = handled | self.manager.do_action( self, self._rclick_action)                        
                 
         return handled
         
@@ -536,8 +549,14 @@ class MapWidget(BaseWidget):
         if event.type == MOUSEBUTTONDOWN and event.button == 3:
             sel = self.game.selected_obj
             if sel is not None and hasattr(sel, "set_order"):
-                sel.set_order( actor.PathToOrder(sel, event.gamepos))
-                return True
+                pressed = pygame.key.get_pressed()
+                order = actor.PathToOrder(sel, event.gamepos)
+                if pressed[K_LSHIFT] or pressed[K_RSHIFT]:
+                    sel.queue_order( order)
+                else:
+                    sel.set_order( order)                 
+                
+                return EVENT_HANDLED
         return BaseWidget._self_handle_event(self, event)
             
             
@@ -551,7 +570,6 @@ class TestWidget(BaseWidget):
         BaseWidget.__init__(self, manager, rect, layer)     
     
     def _draw_self(self, viewport, rect):
-        screen = viewport.surface
         if self._mouseover:
             color = (255,255,100)
         elif self.selected:
@@ -599,15 +617,15 @@ class DragBar(BaseWidget):
         if self._mouseover and event.type == MOUSEBUTTONDOWN and event.button == 1:
             self._dragging = True
             self.manager.add_mousemotion_listener( self)
-            return True
+            return EVENT_HANDLED
         elif self._mouseover and event.type == MOUSEBUTTONUP and event.button == 1:
             self._dragging = False
             self.manager.remove_mousemotion_listener( self)
-            return True
+            return EVENT_HANDLED
         elif event.type == MOUSEMOTION:
             if self._parent is not None:
                 self._parent.move( event.abs_motion)
-                return True
+                return EVENT_HANDLED
         return BaseWidget._self_handle_event(self, event)
         
                 
@@ -814,7 +832,7 @@ class GameObjWidget(BaseWidget):
 
     def update_rect(self):
         if self._game_object is not None:
-            self._space_rect = self.game_object.rect
+            self._space_rect.center = self.game_object.rect.center
         self._children_update_rect()
         
     def _update_handler(self, viewport, mousepos):
@@ -875,13 +893,13 @@ class OrderMenuBuilder(object):
                 items.append( item)
             cm = TextContextMenu(interface, event.pos, items)
             interface.set_context_menu(cm)
-            return True
+            return EVENT_HANDLED | EVENT_PRESERVE_CONTEXT
         elif len(self.options) == 1:
             option = self.options.pop()
             self.builder.do_order(option)
-            return True
+            return EVENT_HANDLED
         else:
-            return False
+            return EVENT_UNHANDLED
             
 
         
@@ -918,7 +936,7 @@ class SpriteWidget(GameObjWidget):
             pygame.draw.rect(viewport.surface, (255,255,0), disp_rect, 1)
         elif self.selected:
             pygame.draw.rect(viewport.surface, (255,255,255), disp_rect, 1)
-
+            
             
 class InvisWidget(BaseWidget):
     update_rect = BaseWidget._relative_update_rect
@@ -928,6 +946,7 @@ class InvisWidget(BaseWidget):
     
     def _draw_self(self, viewport, rect):
         pygame.draw.rect( viewport.surface, (255,255,255), rect, 4)
+
 
 class WorkspaceWidget(GameObjWidget):
     def __init__(self, manager, obj, rect=None, layer=LAYER_GAME_FG):
@@ -940,6 +959,35 @@ class WorkspaceWidget(GameObjWidget):
         
         color = (255,255,255) if self.game_object.reserved else (100,100,100)
         pygame.draw.ellipse(viewport.surface, color, disp_rect, 1)
+
+
+class BuildingPlacerWidget(GameObjWidget):
+    def __init__(self, mgr, obj, rect):
+        GameObjWidget.__init__(self, mgr, obj, rect)
+        self.valid_pos = False
+    
+    def update(self, viewport, mousepos):
+        GameObjWidget.update(self, viewport, mousepos)
+        topleft = self._space_rect.topleft
+        botright = self._space_rect.bottomright
+        self.valid_pos = self.game_object.game.map.game_area_clear(topleft, botright)
+    
+    def _draw_self(self, viewport, disp_rect):
+        color = (0,255,0) if self.valid_pos else (255,0,0)
+        pygame.draw.rect(viewport.surface, color, disp_rect, 2)
+        
+    def _self_handle_event(self, event):
+        if self._mouseover and event.type == MOUSEBUTTONDOWN:
+            if event.button == 1:
+                if self.valid_pos:
+                    self.game_object.place_structure()
+                return EVENT_HANDLED
+            elif event.button == 3:
+                self.game_object.finished = True
+                return EVENT_HANDLED
+
+        return GameObjWidget._self_handle_event(self, event)
+
         
 class StructWidget(SpriteWidget):
 
@@ -978,7 +1026,9 @@ class ResourcePileWidget( SpriteWidget):
         bar_rect.h = 4*viewport.scale
         bar_rect.bottom = disp_rect.bottom
         rstore = self._game_object.res_storage
-        bar_rect.w = int(bar_rect.w * (rstore.get_actual_contents(None)/rstore.get_capacity()))
+        ratio = (rstore.get_actual_contents(None)/rstore.get_capacity())
+        ratio = 1.0-self._game_object.decay_timer
+        bar_rect.w = int(bar_rect.w * ratio)
         bar_rect.w = max(1, bar_rect.w)
         pygame.draw.rect(viewport.surface, (255,0,0), bar_rect, 0)
 

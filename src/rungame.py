@@ -120,7 +120,8 @@ class AstarActivity( application.Activity):
             
             points = [(p[0]*self.tile_size + self.tile_size/2, p[1]*self.tile_size + self.tile_size/2) for p in self.simple_path]
             pygame.draw.lines(self.screen, (0,0,200), False, points)            
-            
+
+
 class TestActivity( application.Activity):
     """Test activity for debugging."""
     
@@ -187,7 +188,7 @@ class TestActivity( application.Activity):
         self.font = pygame.font.Font(None, 24)
         self.iface = interface.InterfaceManager(self)
         self.game = game.Game()
-        self.director = GameDirector(self.game, self.iface, self.assets)
+        self.director = GameDirector(self.game, self.iface, self.assets, self.vp)
         self.game.director = self.director
         self.ticker = 1
         self.options = 5
@@ -227,36 +228,14 @@ class TestActivity( application.Activity):
         #snorgle
         testobj = self.director.add_herd( (0,0))
         
-        #hut
-        testobj = self.director.add_simple_structure( (-1100, -200), 3, ('make-tools', 'make-pots', 'butcher'), self.assets.get('hut'))
-        store1 = resource.ResourceStore(testobj, 5, ('pottery', 'hides'), resource.ResourceStore.WAREHOUSE)
-        store2 = resource.ResourceStore(testobj, float('inf'), ('meat', 'vegetables', 'fish', 'spirit'), resource.ResourceStore.WAREHOUSE)         
-        store = resource.CompositeResourceStore(testobj, (store1,store2), resource.ResourceStore.WAREHOUSE)       
-        testobj.set_storage(store)
-        
-        #farm
-        testobj = self.director.add_simple_structure( (-300,  800), 1, ('gather-corn',), self.assets.get('farm'))
-        testobj.set_reservoir(10, ('vegetables'), 0.01)
-        
-        #storehouse
-        #testobj = self.director.add_simple_structure( (-200, -200), 0, (), self.assets.get('storehouse'))
-        #testobj.set_warehouse(2, ('clay', 'wood', 'stone'))        
-        
-        #altar
-        testobj = self.director.add_simple_structure( (-50,  400), 1, ('meditate',), self.assets.get('altar'))
-        testobj.set_reservoir(float('inf'), 'spirit', 0)        
-        
-        #claypit
-        testobj = self.director.add_simple_structure( (-800, 550), 1, ('gather-clay',), self.assets.get('claypit'))
-        testobj.set_reservoir(10, 'clay', 0.01)
-        
-        #rock
-        testobj = self.director.add_simple_structure( (-350,  -50), 1, ('mine',), self.assets.get('rock'))
-        testobj.set_reservoir(20, 'stone', 0.001)
-        
-        #trees
-        testobj = self.director.add_simple_structure( (-1100, 600), 2, ('cut-wood',), self.assets.get('tree'))
-        testobj.set_reservoir(5, 'wood', 0.01)
+        #test buildings
+        self.director.add_tagged_structure((-100, -200), "hut")
+        self.director.add_tagged_structure((-300, 800), "farm")
+        #self.director.add_tagged_structure((-50, -200), "storehouse")
+        self.director.add_tagged_structure((-50, 400), "altar")
+        self.director.add_tagged_structure((-800, 550), "claypit")
+        self.director.add_tagged_structure((-350, -50), "rock")
+        self.director.add_tagged_structure((-1100, 600), "tree")
         
         #hud
         panel = interface.Panel(self.iface, (0,0,800,30))
@@ -269,18 +248,18 @@ class TestActivity( application.Activity):
                     ])
         text = interface.TextLabel(self.iface, (400,10), 'medfont', gen)
         panel.add_child(text)        
-        
-        button = interface.TextButton(self.iface, (600,10), 'medfont', interface.StaticText('Research'), ResearchMenuAction())
+        button = interface.TextButton(self.iface, (550,10), 'medfont', interface.StaticText('Research'), ResearchMenuAction())
         panel.add_child(button)
-        
+        button = interface.TextButton(self.iface, (700,10), 'medfont', interface.StaticText('Build'), BuildMenuAction())
+        panel.add_child(button)        
         self.iface.add_child(panel)
-
         
     def update(self):
         self.ticker += 1
         application.Activity.update(self)
         self.iface.update( self.vp)
-        self.game.update()        
+        self.game.update()
+        self.game.director.update()
 
         pressed = pygame.key.get_pressed()
         if pressed[K_d]:
@@ -291,7 +270,6 @@ class TestActivity( application.Activity):
             self.vp.pan( (0,5/self.vp.scale))
         elif pressed[K_w]:
             self.vp.pan( (0,-5/self.vp.scale))
-
             
     def draw(self):
         application.Activity.draw(self)
@@ -301,7 +279,6 @@ class TestActivity( application.Activity):
                             int(15*self.vp.scale), int(self.vp.scale*4))
 
         self.iface.draw( self.vp)
-
 
     def handle_event(self, event):
         event = DictEvent(event)
@@ -329,6 +306,13 @@ class TestActivity( application.Activity):
                 self.options = max(self.options-1, 1)
             elif event.key == K_PERIOD:
                 self.options = min(self.options+1, 8)
+            elif event.key == K_SPACE:
+                topleft = self.vp.translate_point(pygame.mouse.get_pos(), viewport.SCREEN_TO_GAME)
+                print str(topleft-(100,100)) + " | " + str(topleft+(100,100))
+                print self.game.map.game_area_clear(topleft-(100,100), topleft+(100,100))
+            elif event.key == K_1:
+                pos = self.vp.translate_point(pygame.mouse.get_pos(), viewport.SCREEN_TO_GAME)
+                print self.game.map.get_tile_at(self.game.map.game_coords_to_map(pos))
             elif event.key == K_ESCAPE:
                 self.finish()
             elif event.key == K_m:
@@ -339,6 +323,11 @@ class TestActivity( application.Activity):
                 self.game.map.save("map.txt")
             elif event.key == K_l:
                 self.game.map.load("map.txt")
+            elif event.key == K_TAB:
+                testobj = game.BuildingPlacer(self.game, self.mouse_obj, "hut")
+                self.game.add_game_object(testobj)        
+                testwidg = interface.BuildingPlacerWidget(self.iface, testobj, pygame.Rect(0, 0, 200,200))
+                self.iface.add_child(testwidg)                
             elif event.key == K_F1:
                 i = 0
                 while True:
@@ -349,7 +338,7 @@ class TestActivity( application.Activity):
                     i += 1
 
 class ResearchMenuAction(interface.InterfaceAction):
-        
+            
     def do_action(self, source_widget, interface, game):
         game.director.show_research_menu()
         
@@ -372,19 +361,46 @@ class ResearchItemAction(interface.InterfaceAction):
             consumed = director.consume_from_any_store(('spirit',), tech.cost)
             if director.research_menu is not None:
                 director.research_menu.finished = True
-            director.show_research_menu()
+            director.show_research_menu()        
+
+        
+class BuildMenuAction(interface.InterfaceAction):
+            
+    def do_action(self, source_widget, interface, game):
+        game.director.show_build_menu()        
+
+        
+class BuildItemAction(interface.InterfaceAction):
+    
+    def __init__(self, tag):
+        interface.InterfaceAction.__init__(self)
+        self.tag = tag        
+        
+    def do_action(self, source_widget, interface, game):
+        director = game.director
+        director.start_structure_build(self.tag)
+        director.build_menu.finished = True
+            
 
 class GameDirector(object):
     '''Generic factory/game state mutator'''
 
-    def __init__(self, game_mgr, iface_mgr, asset_mgr):
+    def __init__(self, game_mgr, iface_mgr, asset_mgr, viewport=None):
         self.game = game_mgr
         self.iface = iface_mgr
         self.assets = asset_mgr
+        self.viewport = viewport
+        
+        #mouse follower object
+        self.mouse_obj = game.GameObject(self.game, (0,0), (0,0), float('inf'))
+        self.game.add_game_object(self.mouse_obj)
         
         self.food_buffer = 0
         self.tech = tech.CivilisTechManager()
         self.research_menu = None
+        
+    def update(self):
+        self.mouse_obj.position = self.viewport.translate_point(pygame.mouse.get_pos(), viewport.SCREEN_TO_GAME)
 
     def show_research_menu(self):
         self.research_menu = panel = interface.Panel(self.iface, (100,100,600,600))
@@ -402,14 +418,29 @@ class GameDirector(object):
             text = interface.TextButton(self.iface, (30, offset*25), 'medfont', gen, ResearchItemAction(tech.tag))
             panel.add_child(text)
             
+    def show_build_menu(self):
+        self.build_menu = panel = interface.Panel(self.iface, (100,100,600,600))
+        self.iface.add_child(panel)
+
+        panel.add_child(interface.TextButton(self.iface, (550, 10), 'smallfont', interface.StaticText('close'), interface.CloseAction(panel)))
+        
+        tags = ('hut', 'rock', 'tree', 'farm', 'storehouse', 'altar', 'claypit', 'rock', 'tree')
+        offset = 1
+        for tag in tags:
+            string = tag
+            gen = interface.StaticText(string)
+            offset += 1
+            text = interface.TextButton(self.iface, (30, offset*25), 'medfont', gen, BuildItemAction(tag))
+            panel.add_child(text)
+
+    def start_structure_build(self, tag):
+        testobj = game.BuildingPlacer(self.game, self.mouse_obj, tag)
+        self.game.add_game_object(testobj)        
+        testwidg = interface.BuildingPlacerWidget(self.iface, testobj, pygame.Rect(0, 0, 200,200))
+        self.iface.add_child(testwidg)            
 
     def create_resource_dump(self, pos, dumpThis):
-        storage = game.ResourcePile(self.game, (30,30), pos, 1)
-        storage.target_actions = storage.target_actions.union(('store'))
-        dump = resource.ResourceStore(storage, dumpThis['qty'], (dumpThis['type'],), resource.ResourceStore.DUMP)
-        dump.deposit( dumpThis)
-        dump.set_delta(dumpThis['type'], -.001)        
-        storage.set_storage(dump)
+        storage = game.ResourcePile(self.game, pos, dumpThis, 0.001)
         self.game.add_game_object(storage)
         
         if self.iface is not None:
@@ -431,16 +462,40 @@ class GameDirector(object):
     def add_tagged_structure(self, position, tag):
         '''This needs to add interface objects'''
         
-        
         if tag == 'rock':
-            obj = self.director.add_simple_structure( position, 1, ('mine',), self.assets.get('rock'))
+            obj = self.add_simple_structure( position, 1, ('mine',), self.assets.get('rock'))
             obj.set_reservoir(5, 'stone', 0.001)            
         elif tag == 'tree':
-            obj = self.director.add_simple_structure( position, 2, ('cut-wood',), self.assets.get('tree'))
+            obj = self.add_simple_structure( position, 2, ('cut-wood',), self.assets.get('tree'))
             obj.set_reservoir(5, 'wood', 0.001)                
         elif tag == 'hut':
             obj = self.add_simple_structure( position, 4, ('butcher', 'enlist'), self.assets.get('hut'))
-            obj.set_warehouse(10, ('wood', 'stone', 'meat'))
+            store1 = resource.ResourceStore(obj, 5, ('pottery', 'hides'), resource.ResourceStore.WAREHOUSE)
+            store2 = resource.ResourceStore(obj, float('inf'), ('meat', 'vegetables', 'fish', 'spirit'), resource.ResourceStore.WAREHOUSE)         
+            store = resource.CompositeResourceStore(obj, (store1,store2), resource.ResourceStore.WAREHOUSE)       
+            obj.set_storage(store)            
+        elif tag == "farm":
+            obj = self.add_simple_structure( position, 1, ('gather-corn',), self.assets.get('farm'))
+            obj.set_reservoir(10, ('vegetables'), 0.01)
+        elif tag == "storehouse":
+            obj = self.add_simple_structure( position, 0, (), self.assets.get('storehouse'))
+            obj.set_warehouse(2, ('clay', 'wood', 'stone'))
+        elif tag == "altar":
+            obj = self.add_simple_structure( position, 1, ('meditate',), self.assets.get('altar'))
+            obj.set_reservoir(float('inf'), 'spirit', 0)        
+        elif tag == "claypit":
+            obj = self.add_simple_structure( position, 1, ('gather-clay',), self.assets.get('claypit'))
+            obj.set_reservoir(10, 'clay', 0.01)
+        elif tag == "rock":
+            obj = self.add_simple_structure( position, 1, ('mine',), self.assets.get('rock'))
+            obj.set_reservoir(20, 'stone', 0.001)
+        elif tag == "tree":
+            obj = self.add_simple_structure( position, 2, ('cut-wood',), self.assets.get('tree'))
+            obj.set_reservoir(5, 'wood', 0.01)
+        else:
+            raise ValueError("Invalid tag "+tag)
+            
+        return obj
 
     def make_circuit(self, center, size=300):
         self.num_nodes = random.randrange(8,13)

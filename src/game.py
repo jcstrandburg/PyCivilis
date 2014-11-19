@@ -212,8 +212,8 @@ class GameObject(object):
     def get_render_state(self):
         return self._render_state
 
-class Workspace(GameObject):
 
+class Workspace(GameObject):
     def __init__(self, game, structure, pos):
         GameObject.__init__(self, game, (50,50), pos, float('inf'))
         self.reserved = False
@@ -224,6 +224,21 @@ class Workspace(GameObject):
         
     def release(self):
         self.reserved = False
+
+
+class BuildingPlacer(GameObject):
+    def __init__(self, game, mouse_object, tag):
+        GameObject.__init__(self, game, (0,0), mouse_object.position, float('inf'))
+        self._mouse_obj = mouse_object
+        self._tag = tag
+        
+    def update(self):
+        self.position = self._mouse_obj.position
+        
+    def place_structure(self):
+        self.game.director.add_tagged_structure(self.position, self._tag)
+        self.finished = True
+
         
 class WorkspaceReservation(reservation.Reservation):
     def __init__(self):
@@ -239,9 +254,10 @@ class WorkspaceReservation(reservation.Reservation):
         if self.workspace is not None:
             self.workspace.release()
 
+
 class StructureObject(GameObject):
 
-    def __init__(self, game, size=(100,100), position=(0,0), num_workspaces=1):
+    def __init__(self, game, size=(30,30), position=(0,0), num_workspaces=1):
         GameObject.__init__(self,game,size,position,float('inf'))
         self.workspaces = []
         self.reservations = []
@@ -322,7 +338,27 @@ class StructureObject(GameObject):
 
 
 class ResourcePile(StructureObject):
+    def __init__(self, game, position, dump_this, decayrate):
+        StructureObject.__init__(self, game, (0,0), position, 0)
+        self.decay_timer = 0
+        self.restype = dump_this['type']
+        self.decay_rate = decayrate
+        
+        dump = resource.ResourceStore(self, dump_this['qty'], (dump_this['type'],), resource.ResourceStore.DUMP)
+        dump.deposit( dump_this)
+        self.set_storage(dump)
+       
+    
     def update(self):
+        self.decay_timer += self.decay_rate
+        
+        if self.decay_timer > self.res_storage.get_actual_contents(self.restype):
+            self.res_storage.withdraw(self.restype, self.decay_timer)
+            self.decay_timer= 0
+        elif self.decay_timer > 1:
+            self.res_storage.withdraw(self.restype, 1)
+            self.decay_timer -= 1
+        
         StructureObject.update(self)
         if self.res_storage.get_actual_contents(None) <= 0:
             self.finished = True

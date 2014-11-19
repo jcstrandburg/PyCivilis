@@ -1,6 +1,9 @@
+import pygame
+from pygame.locals import *
 import random
 
 import game
+from collections import deque
 
 
 class Actor(game.GameObject):
@@ -10,22 +13,38 @@ class Actor(game.GameObject):
         game.GameObject.__init__(self, gamemgr, (50,50), pos)
         self.move_speed = 5.0
         self._order = None
+        self._order_queue = deque(())
         self.selectable = True
         self.carrying = None
+        self.idling = False
 
     def update(self):
-        if self._order is not None:
-            self._order.do_step()
 
         if self._order is None or self._order.completed or not self._order.valid:
-            self.set_order( IdleOrder(self))
+            try:
+                self._order = self._order_queue.popleft()
+                self.Idling = False
+            except IndexError:
+                self.set_order( IdleOrder(self))
+                self.idling = True
+                
+        if self._order is not None:
+            self._order.do_step()                
             
         self.game.director.consume_food(0.0015)
 
     def set_order(self, order):
         if self._order is not None:
             self._order.cancel()
+        self._order_queue.clear()
         self._order = order
+        self.idling = False
+        
+    def queue_order(self, order):
+        if self.idling:
+            self.set_order(order)
+        else:
+            self._order_queue.append(order)
                 
     def selectable(self):
         return True
@@ -141,10 +160,21 @@ class FollowPathOrder(BaseOrder):
             
         self.suborder.do_step()
 
-class PathToOrder(FollowPathOrder):
+
+class PathToOrder(BaseOrder):
     def __init__(self, actor, destination, move_rate=1.0):
-        path = actor.game.map.find_game_path(actor.position, destination)
-        FollowPathOrder.__init__(self, actor, path, move_rate)
+        BaseOrder.__init__(self, actor)
+        self.destination = destination
+        self.suborder = None
+        
+    def do_step(self):
+        if self.suborder is None:
+            path = self.actor.game.map.find_game_path(self.actor.position, self.destination)
+            self.suborder = FollowPathOrder(self.actor, path)
+            
+        self.suborder.do_step()
+        self.completed = self.suborder.completed
+        self.valid = self.suborder.valid
         
 
 class IdleOrder(StatefulSuperOrder):
@@ -293,6 +323,18 @@ class SeekOrder(BaseOrder):
     def do_step(self):
         dist = self.actor.move_toward( self._target_obj.position, 1.0)
         if dist < 1:
+            self.completed = True
+
+class ApproachOrder(BaseOrder):
+    def __init__(self, actor, target_obj, threshold=125, move_rate=1.0):
+        BaseOrder.__init__(self, actor)
+        self.target = target_obj
+        self.move_rate = move_rate
+        self.dist_threshold = threshold
+
+    def do_step(self):
+        dist = self.actor.move_toward( self.target.position, self.move_rate)
+        if dist < self.dist_threshold:
             self.completed = True
 
 class StalkOrder(BaseOrder):
@@ -446,7 +488,39 @@ class GetResourceFromStorageOrder(StatefulSuperOrder):
         self.completed = True
         
     def cancel(self):
-        raise NotImplementedError()
+        if hasattr(self.actor, 'resource_reservation') and self.actor.resource_reservation is not None:
+            self.actor.resource_reservation.release()
+            self.actor.resource_reservation = None
+    
+class StoreCarryingOrder(StatefulSuperOrder):
+    def __init__(self, actor):
+        StatefulSuperOrder.__init__(self, actor, "reserve_storage")    
+    
+    def start_reserve_storage(self):
+        return ReserveStorageOrder(self.actor)
+
+    def complete_reserve_storage(self):
+        self.set_state("move_to_storage")
+
+    def start_move_to_storage(self):
+        if self.actor.storage_reservation is not None:
+            return ApproachOrder(self.actor, self.actor.storage_reservation.structure)            
+        else:
+            return SimpleMoveOrder(self.actor, (random.uniform(-600.0, -400.0), random.uniform(300.0, 400.0)))
+
+    def complete_move_to_storage(self):
+        self.set_state("store_resources")
+
+    def start_store_resources(self):
+        return DepositOrder(self.actor)
+
+    def complete_store_resources(self):
+        self.completed = True
+        
+    def cancel(self):
+        if hasattr(self.actor, 'storage_reservation') and self.actor.storage_reservation is not None:
+            self.actor.storage_reservation.release()
+            self.actor.storage_reservation = None
 
 
 class ForageOrder(StatefulSuperOrder): 
@@ -501,32 +575,14 @@ class ForageOrder(StatefulSuperOrder):
         return ExtractResourceOrder(self.actor,self._target, self.resource_type)
 
     def complete_do_forage(self):
-        self.set_state("reserve_storage")
-
-    def start_reserve_storage(self):
-        return ReserveStorageOrder(self.actor)
-
-    def complete_reserve_storage(self):
-        self.set_state("move_to_storage")
-
-    def start_move_to_storage(self):
-        if self.actor.storage_reservation is not None:
-            diff = -self.actor.position + self.actor.storage_reservation.structure.position
-            length = diff.length - 125
-            targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
-            return SimpleMoveOrder(self.actor, targetpos)
-        else:
-            return SimpleMoveOrder(self.actor, (random.uniform(-600.0, -400.0), random.uniform(300.0, 400.0)))
-
-    def complete_move_to_storage(self):
-        self.set_state("store_resources")
-
-    def start_store_resources(self):
-        return DepositOrder(self.actor)
-
-    def complete_store_resources(self):
-        self.set_state("reserve_forage")
+        self.set_state("store_forage")
+        
+    def start_store_forage(self):
+        return StoreCarryingOrder(self.actor)
     
+    def complete_store_forage(self):
+        self.set_state("reserve_forage")        
+
     def cancel(self):
         StatefulSuperOrder.cancel(self)
         if hasattr(self.actor, 'target_workspace') and self.actor.target_workspace is not None:
@@ -564,32 +620,14 @@ class HuntOrder(StatefulSuperOrder):
 
     def complete_kill(self):
         self.actor.hunt_reservation.release()
-        self.set_state("reserve_storage")
-
-    def start_reserve_storage(self):
-        return ReserveStorageOrder(self.actor)
-
-    def complete_reserve_storage(self):
-        self.set_state("seek_storage")
-
-    def start_seek_storage(self):
-        if self.actor.storage_reservation is not None:
-            diff = -self.actor.position + self.actor.storage_reservation.structure.position
-            length = diff.length - 125
-            targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
-            return SimpleMoveOrder(self.actor, targetpos)
-        else:
-            return SimpleMoveOrder(self.actor, (random.uniform(-600.0, -400.0), random.uniform(300.0, 400.0)))
-
-    def complete_seek_storage(self):
-        self.set_state("dump_storage")
-
-    def start_dump_storage(self):
-        return DepositOrder(self.actor)
-
-    def complete_dump_storage(self):
-        self.set_state("seek")
+        self.set_state("store_kill")
         
+    def start_store_kill(self):
+        return StoreCarryingOrder(self.actor)
+    
+    def complete_store_kill(self):
+        self.set_state("seek")
+
     def cancel(self):
         StatefulSuperOrder.cancel(self)        
         if hasattr( self.actor, "hunt_reservation") and self.actor.hunt_reservation is not None:
@@ -640,35 +678,14 @@ class ConvertResourceOrder(StatefulSuperOrder):
         return DoConvertOrder(self.actor, self.rawMaterial, self.finishedGood)
 
     def complete_do_conversion(self):
-        self.set_state("reserve_storage")
-        
-    def start_reserve_storage(self):
-        return ReserveStorageOrder(self.actor)
-
-    def complete_reserve_storage(self):
-        self.set_state("move_to_storage")
-
-    def start_move_to_storage(self):
-        if self.actor.storage_reservation is not None:
-            diff = -self.actor.position + self.actor.storage_reservation.structure.position
-            length = diff.length - 125
-            targetpos = self.actor.position.interpolate_to(self.actor.storage_reservation.structure.position, length/diff.length)            
-            return SimpleMoveOrder(self.actor, targetpos)
-        else:
-            return SimpleMoveOrder(self.actor, (random.uniform(-600.0, -400.0), random.uniform(300.0, 400.0)))
-
-    def complete_move_to_storage(self):
-        self.set_state("store_product")        
+        self.set_state("store_product")
         
     def start_store_product(self):
-        return DepositOrder(self.actor)
-
+        return StoreCarryingOrder(self.actor)
+    
     def complete_store_product(self):
         self.set_state("seek_material")
         
-    def cancel(self):
-        StatefulSuperOrder.cancel(self)
-
 
 class ButcherOrder(ConvertResourceOrder):
     
@@ -736,26 +753,33 @@ class OrderBuilder(object):
         self.target = target
 
     def get_options(self):
-        return self.target.target_actions.intersection( self.selected.abilities)    
+        return self.target.target_actions.intersection( self.selected.abilities)
+    
+    def apply_order(self, order):
+        pressed = pygame.key.get_pressed()
+        if pressed[K_LSHIFT] or pressed[K_RSHIFT]:
+            self.selected.queue_order( order)
+        else:
+            self.selected.set_order( order)    
         
     def do_order(self, tag):
         if tag == "mine":
-            self.selected.set_order( ForageOrder(self.selected, self.target, 'stone'))
+            self.apply_order( ForageOrder(self.selected, self.target, 'stone'))
         elif tag == "cut-wood":
-            self.selected.set_order( ForageOrder(self.selected, self.target, 'wood'))
+            self.apply_order( ForageOrder(self.selected, self.target, 'wood'))
         elif tag == "hunt":
-            self.selected.set_order( HuntOrder(self.selected, self.target.leader))
+            self.apply_order( HuntOrder(self.selected, self.target.leader))
         elif tag == 'gather-corn':
-            self.selected.set_order( ForageOrder(self.selected, self.target, 'vegetables'))
+            self.apply_order( ForageOrder(self.selected, self.target, 'vegetables'))
         elif tag == 'gather-clay':
-            self.selected.set_order( ForageOrder(self.selected, self.target, 'clay'))
+            self.apply_order( ForageOrder(self.selected, self.target, 'clay'))
         elif tag == 'meditate':
-            self.selected.set_order( MeditateOrder(self.selected, self.target))
+            self.apply_order( MeditateOrder(self.selected, self.target))
         elif tag == 'make-pots':
-            self.selected.set_order( ConvertResourceOrder(self.selected, self.target, 'clay', 'pottery'))
+            self.apply_order( ConvertResourceOrder(self.selected, self.target, 'clay', 'pottery'))
         elif tag == 'make-tools':
-            self.selected.set_order( ConvertResourceOrder(self.selected, self.target, 'stone', 'metal_tools'))
+            self.apply_order( ConvertResourceOrder(self.selected, self.target, 'stone', 'metal_tools'))
         elif tag == 'butcher':
-            self.selected.set_order( ButcherOrder(self.selected, self.target))
+            self.apply_order( ButcherOrder(self.selected, self.target))
         else:
             raise ValueError('Unrecognized tag '+str(tag))
