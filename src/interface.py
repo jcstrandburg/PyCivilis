@@ -370,24 +370,6 @@ class BaseWidget(WidgetBehavior):
     def deselect(self):
         self.selected = False
         self.manager.set_selection_menu( None)
-
-    def handle_event(self, event):
-        """Handles a pygame input event."""
-        
-        handled = EVENT_UNHANDLED
-        if self.mouse_is_over():
-            if event.type == MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    if self._lclick_action is not None:
-                        handled = handled | self.manager.do_action( self, self._lclick_action)
-                    if self._selectable:
-                        self.manager.selected_obj = self
-                        handled = EVENT_HANDLED
-                elif event.button == 3:
-                    if self._rclick_action is not None:
-                        handled = handled | self.manager.do_action( self, self._rclick_action)                        
-                
-        return handled
         
     def get_selection_menu(self):
         return None
@@ -1053,6 +1035,7 @@ class ActorWidget(SpriteWidget):
     def __init__(self, manager, obj, img):
         carry_rect = pygame.Rect(8,40,30,30)
         self.carry_widget = SpriteWidget(manager, carry_rect, None)
+        self.carry_widget._selectable = False
         
         SpriteWidget.__init__(self, manager, obj, img)
         self.add_child(self.carry_widget)        

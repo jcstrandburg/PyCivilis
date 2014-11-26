@@ -125,6 +125,8 @@ class AstarActivity( application.Activity):
 class TestActivity( application.Activity):
     """Test activity for debugging."""
     
+    map_size = 64
+    
     def make_resource_tree(self):
         downscale = lambda tag: pygame.transform.smoothscale( self.assets.get(tag), (30,30))
         
@@ -192,7 +194,7 @@ class TestActivity( application.Activity):
         self.game.director = self.director
         self.ticker = 1
         self.options = 5
-        self.game.map = tilemap.Map((16,16))        
+        self.game.map = tilemap.Map((self.map_size,self.map_size))        
         
         self.game.resource_types = self.make_resource_tree()
         
@@ -291,7 +293,7 @@ class TestActivity( application.Activity):
             event.rel_motion = (round(event.rel[0]/self.vp.scale),
                                 round(event.rel[1]/self.vp.scale))
             event.abs_motion = event.rel
-                                                    
+            
         if self.iface.handle_event( event):
             return
 
@@ -316,7 +318,7 @@ class TestActivity( application.Activity):
             elif event.key == K_ESCAPE:
                 self.finish()
             elif event.key == K_m:
-                self.game.map = tilemap.Map((16,16))
+                self.game.map = tilemap.Map((self.map_size,self.map_size))
             elif event.key == K_n:
                 self.game.map.grow_grass()
             elif event.key == K_k:
@@ -530,6 +532,7 @@ class GameDirector(object):
        
         if add_scavenger:
             obj2 = game.ScavengerObject(self.game, obj)
+            obj2.selectable = False
             self.game.add_game_object(obj2)
             obj.set_scavenger( obj2)
             
