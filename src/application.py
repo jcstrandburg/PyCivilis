@@ -21,7 +21,7 @@ class Application(object):
         pygame.init()
         self.clock = pygame.time.Clock()
         self.clock.tick()        
-        self.screen = pygame.display.set_mode((800, 800))
+        self.screen = pygame.display.set_mode((800, 800), pygame.DOUBLEBUF)
         pygame.mixer.init()        
 
     def set_fps_cap(self, cap):
@@ -37,7 +37,7 @@ class Application(object):
         
     def draw(self):
         """Resets the screen and then tells the top activity to draw"""
-        self.screen.fill((200,150,80) )
+        #self.screen.fill((200,150,80) )
         top = self._get_top_activity()
         if top is not None:
             top.draw()

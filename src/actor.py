@@ -54,6 +54,9 @@ class Actor(game.GameObject):
         
     def deselect(self):
         game.GameObject.deselect(self)
+        
+    def get_order_status(self):
+        return self._order.get_description()
 
 
 class BaseOrder(object):
@@ -64,9 +67,13 @@ class BaseOrder(object):
         self.valid = True
         self.completed = False
         self.progress = 0
+        self._description = self.__class__.__name__
 
     def do_step(self):
         raise NotImplementedError("abstract class!")
+
+    def get_description(self):
+        return self._description
 
     def cancel(self):
         self.valid = False
@@ -108,6 +115,12 @@ class StatefulSuperOrder(BaseOrder):
         else:
             raise NotImplementedError("Completion method "+complete_method+" not found")
             self.valid = False
+
+    def get_description(self):
+        if self._state_order is not None:
+            return BaseOrder.get_description(self) + ":" + self._state_order.get_description()
+        else:
+            return BaseOrder.get_description(self) + "!!!"        
 
     def do_step(self):
         if self._state_order is not None:
@@ -303,6 +316,19 @@ class ReserveForageOrder(BaseOrder):
         if self._reservation is not None:
             self._reservation.release()
 
+'''class WaitOrder(StatefulSuperOrder):
+    def __init__(self, actor):
+        self.idle_center = actor.position       
+        StatefulSuperOrder.__init__(self, actor, "idle")
+
+    def start_idle(self):
+        idle_range = 30
+        position = (self.idle_center[0] + random.uniform(-idle_range, idle_range), self.idle_center[1] + random.uniform(-idle_range, idle_range))
+        return SimpleMoveOrder(self.actor, position, 0.1)
+
+    def complete_idle(self):
+        self.set_state('idle')'''
+
 
 class WaitOrder(BaseOrder):
     def __init__(self, actor, callback):
@@ -422,10 +448,14 @@ class WithdrawResourceOrder(BaseOrder):
         self.resType = resType
         
     def do_step(self):
-        self.actor.carrying = self.bank.res_storage.withdraw(self.resType, 1)
-        self.actor.resource_reservation.release()        
-        self.actor.resource_reservation = None
-        self.completed = True
+        withdrawal = self.bank.res_storage.withdraw(self.resType, 1)
+        if withdrawal is not None:
+            self.actor.carrying = withdrawal
+            self.actor.resource_reservation.release()        
+            self.actor.resource_reservation = None
+            self.completed = True
+        else:
+            self.valid = False
         
 class ReserveResourceInStorageOrder(BaseOrder):
     def __init__(self, actor, resType):
@@ -472,8 +502,17 @@ class GetResourceFromStorageOrder(StatefulSuperOrder):
     def start_reserve_resource(self):
         return ReserveResourceInStorageOrder(self.actor, self.resType)
     
+    def fail_reserve_resource(self):
+        self.set_state("wait_for_resource")
+    
     def complete_reserve_resource(self):
         self.set_state("move_to_source")
+        
+    def start_wait_for_resource(self):
+        return WaitOrder(self.actor, lambda: True)
+    
+    def complete_wait_for_resource(self):
+        self.set_state("reserve_resource")
         
     def start_move_to_source(self):
         return SimpleMoveOrder(self.actor, self.actor.resource_reservation.structure.position)
@@ -483,6 +522,9 @@ class GetResourceFromStorageOrder(StatefulSuperOrder):
         
     def start_withdraw_resource(self):
         return WithdrawResourceOrder(self.actor, self.actor.resource_reservation.structure, self.resType)
+    
+    def fail_withdraw_resource(self):
+        self.set_state("reserve_resource")
     
     def complete_withdraw_resource(self):
         self.completed = True
@@ -692,10 +734,8 @@ class ButcherOrder(ConvertResourceOrder):
     def __init__(self, actor, target):
         ConvertResourceOrder.__init__(self, actor, target, 'carcass', 'nothing')
 
-    def start_seek_material(self):
-        return GetResourceFromStorageOrder(self.actor, 'carcass')
-    
     def start_do_conversion(self):
+        print "ookla"
         return DoButcherOrder(self.actor, self.target_struct)
 
     def complete_do_conversion(self):

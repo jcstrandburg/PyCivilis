@@ -471,7 +471,7 @@ class GameDirector(object):
             obj = self.add_simple_structure( position, 2, ('cut-wood',), self.assets.get('tree'))
             obj.set_reservoir(5, 'wood', 0.001)                
         elif tag == 'hut':
-            obj = self.add_simple_structure( position, 4, ('butcher', 'enlist'), self.assets.get('hut'))
+            obj = self.add_simple_structure( position, 4, ('butcher', 'enlist', 'make-pots'), self.assets.get('hut'))
             store1 = resource.ResourceStore(obj, 5, ('pottery', 'hides'), resource.ResourceStore.WAREHOUSE)
             store2 = resource.ResourceStore(obj, float('inf'), ('meat', 'vegetables', 'fish', 'spirit'), resource.ResourceStore.WAREHOUSE)         
             store = resource.CompositeResourceStore(obj, (store1,store2), resource.ResourceStore.WAREHOUSE)       

@@ -42,7 +42,7 @@ class InterfaceManager( object):
         self._motion_listeners = []
         
         self.fonts = {
-            "smallfont": pygame.font.Font(None, 14),
+            "smallfont": pygame.font.Font(None, 16),
             "medfont": pygame.font.Font(None, 22),
             "bigfont": pygame.font.Font(None, 30),
         }
@@ -1052,10 +1052,13 @@ class ActorWidget(SpriteWidget):
         SpriteWidget._draw_self(self, viewport, disp_rect)
 
     def get_selection_menu(self):
-        panel = Panel(self.manager, (0,0,200,600))
+        panel = Panel(self.manager, (0,50,200,600))
+        statusgen = CompositeTextGenerator( (StaticText("O: "), LambdaTextGenerator(lambda: str(self.game_object.get_order_status()))))
+        statustext = TextLabel(self.manager, (10, 30), 'smallfont', statusgen)
         headline = CompositeTextGenerator( (StaticText("Carrying: "), LambdaTextGenerator(lambda: str(self.game_object.carrying))))
-        text = TextLabel(self.manager, (30, 30), 'medfont', headline)
+        text = TextLabel(self.manager, (10, 60), 'medfont', headline)        
         panel.add_child( text)
+        panel.add_child( statustext)
 
         return panel
 

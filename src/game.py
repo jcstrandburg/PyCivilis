@@ -350,7 +350,7 @@ class ResourcePile(StructureObject):
        
     
     def update(self):
-        self.decay_timer += self.decay_rate
+        self.decay_timer += self.decay_rate*3
         
         if self.decay_timer > self.res_storage.get_actual_contents(self.restype):
             self.res_storage.withdraw(self.restype, self.decay_timer)
